@@ -1,0 +1,43 @@
+# 个人数据，不进入版本库
+data/
+private-screenshots/
+backup-debug-data/
+smoke-data-*/
+download-test/
+oss-demo-data/
+chrome-*/
+chrome-profile*/
+*_test.py
+qa_*.py
+
+# 个人快捷方式、音频和运行文件
+*.lnk
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.flac
+appcore/bin/*
+!appcore/bin/.gitkeep
+
+# 默认截图包含真实收藏，公开截图请放 docs/screenshots/
+screenshot-*.png
+ui-test-cover.png
+
+# Python
+__pycache__/
+*.py[cod]
+*.log
+.pytest_cache/
+.venv/
+venv/
+
+# 桌面版运行时缓存
+.fanji-webview/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 旧版桌面构建残留
+desktop/

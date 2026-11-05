@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fff4e8">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="番迹 · 只读动漫手帐分享。">
+  <title>番迹 · 一本只读的动漫手帐</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./share.css">
+</head>
+<body class="share-body">
+  <svg class="svg-sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="icon-star" viewBox="0 0 24 24"><path d="m12 2.8 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.4l6.2-.9Z"/></symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="icon-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="icon-bookmark" viewBox="0 0 24 24"><path d="M6 4h12v17l-6-4-6 4Z"/></symbol>
+    <symbol id="icon-sparkle" viewBox="0 0 24 24"><path d="M12 3c.6 5.2 3.2 7.8 8.4 8.4-5.2.6-7.8 3.2-8.4 8.4-.6-5.2-3.2-7.8-8.4-8.4C8.8 10.8 11.4 8.2 12 3Z"/></symbol>
+    <symbol id="icon-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"/></symbol>
+  </svg>
+
+  <div class="backdrop" aria-hidden="true">
+    <div class="bg-blob blob-pink"></div>
+    <div class="bg-blob blob-blue"></div>
+    <div class="bg-blob blob-yellow"></div>
+    <div class="bg-dots"></div>
+    <div class="petals">
+      <span class="petal p1"></span><span class="petal p2"></span>
+      <span class="petal p3"></span><span class="petal p4"></span>
+    </div>
+  </div>
+
+  <div class="page share-page">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="番迹分享首页">
+        <span class="brand-mark">
+          <svg viewBox="0 0 40 40" aria-hidden="true">
+            <path d="M20 3.5c1.4 9.2 6.8 14.6 16 16-9.2 1.4-14.6 6.8-16 16-1.4-9.2-6.8-14.6-16-16 9.2-1.4 14.6-6.8 16-16Z"/>
+            <circle cx="20" cy="20" r="3.2"/>
+          </svg>
+        </span>
+        <span class="brand-text"><strong>番迹</strong><small>アニメ手帳</small></span>
+        <span class="brand-sticker">SHARED EDITION</span>
+      </a>
+      <div class="topbar-actions">
+        <span class="local-pill"><i></i>READ ONLY</span>
+        <span class="share-from">来自某个人的动漫手帐</span>
+      </div>
+    </header>
+
+    <main class="share-main">
+      <section class="share-hero">
+        <div class="share-hero-copy">
+          <span class="tape-label">A LITTLE ANIME SCRAPBOOK</span>
+          <p class="share-eyebrow">SHARED WITH YOU / 只读分享</p>
+          <h1>有人把看过的故事，<br><span class="marker marker-pink">贴成</span>了一本手帐。</h1>
+          <p class="share-lede">这里没有编辑按钮，也不会改动原手帐。<br>只是一些被认真记住的名字、封面和碎碎念。</p>
+          <div class="share-expiry" id="shareExpiry">
+            <svg class="icon"><use href="#icon-clock"/></svg>
+            正在读取分享信息…
+          </div>
+        </div>
+        <aside class="share-stats" aria-label="手帐统计">
+          <span class="stats-tape">A LITTLE LOG</span>
+          <div class="share-stat-grid">
+            <div class="share-stat"><b id="shareTotal">—</b><span>部作品</span></div>
+            <div class="share-stat"><b id="shareCompleted">—</b><span>部看完</span></div>
+            <div class="share-stat"><b id="shareEpisodes">—</b><span>集陪伴</span></div>
+            <div class="share-stat"><b id="shareRating">—</b><span>平均分</span></div>
+          </div>
+          <p class="share-stat-quote">“每一部看完的番，都是一段被保存下来的时间。”</p>
+        </aside>
+      </section>
+
+      <section class="collection share-collection">
+        <span class="collection-tape" aria-hidden="true"></span>
+        <div class="collection-head">
+          <div class="collection-title">
+            <span class="collection-kicker">THE COLLECTION / コレクション</span>
+            <h2>收藏一览 <span class="title-doodle" aria-hidden="true">✿</span></h2>
+            <p id="shareResult">正在翻开手帐…</p>
+          </div>
+          <div class="toolbar">
+            <label class="search-box" for="shareSearch">
+              <svg class="icon"><use href="#icon-search"/></svg>
+              <input id="shareSearch" type="search" placeholder="搜索名字、标签或短评…" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="select-wrap" for="shareSort">
+              <svg class="icon"><use href="#icon-chevron"/></svg>
+              <select id="shareSort">
+                <option value="recent">最近添加</option>
+                <option value="rating">评分最高</option>
+                <option value="title">名称排序</option>
+                <option value="finishedYear">看完年份从新到旧</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <div class="filters" id="shareFilterBar" role="tablist" aria-label="按状态筛选">
+            <button class="filter-pill is-active" data-filter="all" role="tab" aria-selected="true" type="button">全部<span class="pill-count" data-count="all">0</span></button>
+            <button class="filter-pill" data-filter="completed" role="tab" aria-selected="false" type="button">已看完<span class="pill-count" data-count="completed">0</span></button>
+            <button class="filter-pill" data-filter="watching" role="tab" aria-selected="false" type="button">在看<span class="pill-count" data-count="watching">0</span></button>
+            <button class="filter-pill" data-filter="planned" role="tab" aria-selected="false" type="button">想看<span class="pill-count" data-count="planned">0</span></button>
+            <button class="filter-pill" data-filter="dropped" role="tab" aria-selected="false" type="button">弃番<span class="pill-count" data-count="dropped">0</span></button>
+          </div>
+        </div>
+
+        <div class="grid" id="shareGrid" aria-live="polite"></div>
+
+        <div class="empty-state" id="shareEmpty" hidden>
+          <div class="empty-bubble">まだ空っぽ…<b>这里暂时没有作品</b></div>
+          <h3>这一页是空的</h3>
+          <p>分享者还没有把动漫贴进手帐，<br>或者没有符合筛选条件的作品。</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer share-footer">
+      <div class="footer-brand">
+        <span class="brand-mark small">
+          <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.5c1.4 9.2 6.8 14.6 16 16-9.2 1.4-14.6 6.8-16 16-1.4-9.2-6.8-14.6-16-16 9.2-1.4 14.6-6.8 16-16Z"/><circle cx="20" cy="20" r="3.2"/></svg>
+        </span>
+        <span>番迹 · 只读分享页面</span>
+        <span class="footer-made">MADE WITH ♥ FOR ANIME</span>
+      </div>
+      <div class="footer-actions"><span id="shareFooterExpiry">临时链接</span></div>
+    </footer>
+  </div>
+
+  <div class="modal" id="shareDetailModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-dialog detail-dialog" role="dialog" aria-modal="true" aria-labelledby="shareDetailTitle">
+      <button class="icon-btn detail-close" type="button" data-close aria-label="关闭">
+        <svg class="icon"><use href="#icon-close"/></svg>
+      </button>
+      <div id="shareDetailContent"></div>
+    </div>
+  </div>
+
+  <div class="share-error" id="shareError" hidden>
+    <div class="share-error-card">
+      <span class="stamp">LINK CLOSED</span>
+      <h1>这页手帐已经合上了。</h1>
+      <p id="shareErrorText">分享链接已过期或被停止，请让分享者重新生成。</p>
+    </div>
+  </div>
+
+  <noscript><div class="noscript">需要启用 JavaScript 才能查看这本手帐。</div></noscript>
+  <script src="./share.js"></script>
+</body>
+</html>
