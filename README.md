@@ -38,7 +38,7 @@
 项目只使用 Python 标准库，不需要安装第三方 Python 包。
 
 ```bash
-git clone https://github.com/<your-name>/fanji.git
+git clone https://github.com/wei666-boop/fanji.git
 cd fanji
 python appcore/app.py
 ```
