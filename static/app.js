@@ -35,6 +35,7 @@
     pendingImport: null,
     pendingImportFile: null,
     pendingBackupName: null,
+    yearReviewYear: null,
     confirmMode: null,
     confirmBusy: false,
     lastFocus: null,
@@ -117,6 +118,10 @@
     backupRestoreFileBtn: $("#backupRestoreFileBtn"),
     backupFileInput: $("#backupFileInput"),
     backupRefreshBtn: $("#backupRefreshBtn"),
+    yearReviewBtn: $("#yearReviewBtn"),
+    yearReviewBtnFooter: $("#yearReviewBtnFooter"),
+    yearReviewModal: $("#yearReviewModal"),
+    yearReviewBody: $("#yearReviewBody"),
     toastRoot: $("#toastRoot"),
     playModeBtn: $("#playModeBtn"),
     cinema: $("#cinema"),
@@ -493,7 +498,7 @@
   function bindImageFallbacks(container) {
     $$("img[data-cover]", container).forEach((img) => {
       img.addEventListener("error", () => {
-        const cover = img.closest(".cover, .detail-cover");
+        const cover = img.closest(".cover, .detail-cover, .year-thumb, .year-mini-cover");
         if (cover) {
           cover.classList.add("no-cover");
           cover.classList.remove("has-image");
@@ -510,6 +515,7 @@
     els.heroAddBtn.innerHTML = state.items.length
       ? `${icon("icon-plus")}再记录一部`
       : `${icon("icon-plus")}记录第一部动漫`;
+    if (els.yearReviewBtn) els.yearReviewBtn.hidden = state.items.length === 0;
     document.title = state.items.length
       ? `番迹 · 动漫手帐 · ${state.items.length} 部收藏`
       : "番迹 · 我的动漫手帐";
@@ -1813,6 +1819,353 @@
   }
 
 
+  // ------------------------------------------------------------------
+  // 年度总结
+  // ------------------------------------------------------------------
+
+  function reviewYears() {
+    const years = new Set();
+    state.items.forEach((item) => {
+      const year = Number(item.finishedYear) || 0;
+      if (year >= 1900 && year <= 2100) years.add(year);
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }
+
+  function reviewData(year) {
+    const years = reviewYears();
+    const items = state.items.filter((item) => Number(item.finishedYear) === Number(year));
+    const rated = items.filter((item) => Number(item.rating) > 0);
+    const episodes = items.reduce((sum, item) => sum + (Number(item.episodesWatched) || 0), 0);
+    const average = rated.length
+      ? (rated.reduce((sum, item) => sum + Number(item.rating), 0) / rated.length).toFixed(1)
+      : "—";
+    const highest = rated.length ? Math.max(...rated.map((item) => Number(item.rating))) : 0;
+    const tagCounts = new Map();
+    items.forEach((item) => {
+      (Array.isArray(item.tags) ? item.tags : []).forEach((tag) => {
+        if (!tag) return;
+        tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+      });
+    });
+    const topTags = Array.from(tagCounts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-CN"))
+      .slice(0, 10);
+    const ratingCounts = [0, 0, 0, 0, 0];
+    rated.forEach((item) => { ratingCounts[Math.max(1, Math.min(5, Number(item.rating))) - 1] += 1; });
+    const topWorks = items.slice().sort((a, b) =>
+      (Number(b.rating) || 0) - (Number(a.rating) || 0)
+      || String(a.title).localeCompare(String(b.title), "zh-CN")).slice(0, 5);
+    const completed = items.filter((item) => item.status === "completed").length;
+    return {
+      year: Number(year), years, items, rated, episodes, average, highest,
+      topTags, ratingCounts, topWorks, completed,
+      index: years.indexOf(Number(year)),
+    };
+  }
+
+  function yearCover(item, className = "year-thumb") {
+    const cover = item.coverUrl
+      ? `<img src="${escapeHtml(item.coverUrl)}" alt="" loading="lazy" data-cover>`
+      : "";
+    const label = item.altTitle || "ANIME ARCHIVE";
+    return `<span class="${className} ${item.coverUrl ? "has-image" : "no-cover"}">
+      ${cover}
+      <span class="cover-fallback" aria-hidden="true">
+        <span class="fallback-initial">${escapeHtml(initialOf(item.title))}</span>
+        <span class="fallback-small">${escapeHtml(label)}</span>
+      </span>
+    </span>`;
+  }
+
+  function yearReviewHtml(data) {
+    const { year, years, items, episodes, average, highest, topTags, ratingCounts, topWorks, completed } = data;
+    const topTagHtml = topTags.length
+      ? topTags.map(([tag, count]) => `<span class="year-tag">${escapeHtml(tag)}<b>${count}</b></span>`).join("")
+      : `<span class="year-muted">还没有记录标签</span>`;
+    const maxRating = Math.max(1, ...ratingCounts);
+    const ratingRows = [5, 4, 3, 2, 1].map((star) => {
+      const count = ratingCounts[star - 1];
+      return `<div class="year-rating-row">
+        <span>${star} 星</span>
+        <span class="year-rating-track"><i style="width:${Math.round((count / maxRating) * 100)}%"></i></span>
+        <b>${count}</b>
+      </div>`;
+    }).join("");
+    const topHtml = topWorks.length
+      ? topWorks.map((item, index) => `
+          <li data-open-item="${escapeHtml(item.id)}">
+            <span class="year-rank">${String(index + 1).padStart(2, "0")}</span>
+            ${yearCover(item, "year-thumb small")}
+            <span class="year-top-copy">
+              <b>${escapeHtml(item.title)}</b>
+              <span>${item.rating ? `${item.rating} / 5 · ${RATING_TEXT[Number(item.rating)]}` : "未评分"}</span>
+              ${item.notes ? `<em>${escapeHtml(String(item.notes).slice(0, 52))}${String(item.notes).length > 52 ? "…" : ""}</em>` : ""}
+            </span>
+          </li>`).join("")
+      : `<li class="year-empty">这一年还没有记录作品。</li>`;
+    const allHtml = items.map((item) => `
+      <button class="year-mini" type="button" data-open-item="${escapeHtml(item.id)}">
+        ${yearCover(item, "year-mini-cover")}
+        <span>${escapeHtml(item.title)}</span>
+      </button>`).join("");
+
+    return `
+      <div class="year-head">
+        <div>
+          <p class="year-kicker">YEAR IN REVIEW / 年度总结</p>
+          <h2 id="yearReviewTitle">把这一年，重新翻一遍。</h2>
+        </div>
+        <span class="year-head-stamp">${year}</span>
+      </div>
+
+      <div class="year-switcher">
+        <button type="button" data-year-nav="-1" ${data.index <= 0 ? "disabled" : ""} aria-label="上一年">${icon("icon-prev")}</button>
+        <div><span>YEAR</span><b>${year}</b><small>${data.index + 1} / ${years.length}</small></div>
+        <button type="button" data-year-nav="1" ${data.index >= years.length - 1 ? "disabled" : ""} aria-label="下一年">${icon("icon-next")}</button>
+      </div>
+
+      <div class="year-hero">
+        <div class="year-hero-copy">
+          <p>这一年，我把看过的故事重新数了一遍。</p>
+          <h3>一共 <em>${items.length}</em> 部，<br><em>${episodes}</em> 集陪伴。</h3>
+          <span>已看完 ${completed} 部 · 平均 ${average} 分 · 最高 ${highest || "—"} 分</span>
+        </div>
+        <div class="year-seal" aria-hidden="true">
+          <span>MY ANIME</span>
+          <b>${year}</b>
+          <small>年度手帐</small>
+        </div>
+      </div>
+
+      <div class="year-stat-grid">
+        <div class="year-stat"><b>${items.length}</b><span>部作品</span></div>
+        <div class="year-stat"><b>${episodes}</b><span>集动画</span></div>
+        <div class="year-stat"><b>${average}</b><span>平均分</span></div>
+        <div class="year-stat"><b>${topTags.length}</b><span>个关键词</span></div>
+      </div>
+
+      <div class="year-columns">
+        <section class="year-card">
+          <p class="year-card-kicker">KEYWORDS</p>
+          <h3>年度关键词</h3>
+          <div class="year-tags">${topTagHtml}</div>
+        </section>
+        <section class="year-card">
+          <p class="year-card-kicker">RATINGS</p>
+          <h3>评分分布</h3>
+          <div class="year-rating">${ratingRows}</div>
+        </section>
+      </div>
+
+      <section class="year-card year-top-section">
+        <p class="year-card-kicker">HIGHLIGHTS</p>
+        <h3>年度高分</h3>
+        <ol class="year-top-list">${topHtml}</ol>
+      </section>
+
+      <section class="year-card">
+        <p class="year-card-kicker">ALL MEMORIES</p>
+        <h3>这一年看过</h3>
+        <div class="year-mini-grid">${allHtml || `<p class="year-muted">这一年还没有记录作品。</p>`}</div>
+      </section>
+
+      <div class="year-actions">
+        <button class="btn btn-primary" id="yearPosterBtn" type="button">${icon("icon-image")}保存年度海报</button>
+        <button class="btn btn-ghost" id="yearCopyBtn" type="button">${icon("icon-copy")}复制年度文案</button>
+      </div>
+      <p class="year-footnote">年度总结按「看完年份」统计 · 生成于番迹</p>`;
+  }
+
+  function renderYearReview() {
+    const years = reviewYears();
+    if (!years.length) return;
+    if (!years.includes(Number(state.yearReviewYear))) state.yearReviewYear = years[0];
+    const data = reviewData(state.yearReviewYear);
+    els.yearReviewBody.innerHTML = yearReviewHtml(data);
+    bindImageFallbacks(els.yearReviewBody);
+  }
+
+  function openYearReview() {
+    const years = reviewYears();
+    if (!years.length) {
+      toast("还没有填写看完年份，先在编辑页补上吧", "info");
+      return;
+    }
+    if (!years.includes(Number(state.yearReviewYear))) state.yearReviewYear = years[0];
+    openModal(els.yearReviewModal, ".year-close");
+    renderYearReview();
+  }
+
+  function copyYearCaption(data) {
+    const top = data.topWorks.slice(0, 3).map((item) => `《${item.title}》`).join("、");
+    const text = `我的 ${data.year} 动漫年度总结：${data.items.length} 部 / ${data.episodes} 集，平均 ${data.average} 分。${top ? `年度高分：${top}。` : ""}#番迹`;
+    const done = () => toast("年度文案已复制");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => {});
+      return;
+    }
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+    done();
+  }
+
+  function drawRoundRect(ctx, x, y, width, height, radius, fill, stroke = null) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + width, y, x + width, y + height, radius);
+    ctx.arcTo(x + width, y + height, x, y + height, radius);
+    ctx.arcTo(x, y + height, x, y, radius);
+    ctx.arcTo(x, y, x + width, y, radius);
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 4; ctx.stroke(); }
+  }
+
+  function drawWrapped(ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) {
+    const chars = Array.from(String(text));
+    let line = "";
+    let lines = 0;
+    for (const char of chars) {
+      const test = line + char;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        ctx.fillText(line, x, y + lines * lineHeight);
+        lines += 1;
+        line = char;
+        if (lines >= maxLines) return;
+      } else {
+        line = test;
+      }
+    }
+    if (line && lines < maxLines) ctx.fillText(line, x, y + lines * lineHeight);
+  }
+
+  function downloadYearPoster(data) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1440;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const font = '"Microsoft YaHei", "PingFang SC", sans-serif';
+    ctx.fillStyle = "#fff7e8";
+    ctx.fillRect(0, 0, 1080, 1440);
+    ctx.strokeStyle = "#241d2f";
+    ctx.lineWidth = 7;
+    ctx.strokeRect(34, 34, 1012, 1372);
+    ctx.fillStyle = "#ff5d9e";
+    ctx.fillRect(34, 34, 1012, 18);
+    ctx.fillStyle = "#ffd84d";
+    ctx.fillRect(80, 92, 210, 24);
+    ctx.fillStyle = "#241d2f";
+    ctx.font = `900 24px ${font}`;
+    ctx.fillText("YEAR IN REVIEW / 我的动漫年度总结", 80, 152);
+    ctx.font = `900 190px ${font}`;
+    ctx.fillText(String(data.year), 74, 330);
+    ctx.font = `900 38px ${font}`;
+    ctx.fillText("看过的故事，都算数。", 80, 390);
+
+    const stats = [
+      ["部作品", data.items.length],
+      ["集动画", data.episodes],
+      ["平均分", data.average],
+      ["最高分", data.highest || "—"],
+    ];
+    stats.forEach(([label, value], index) => {
+      const x = 80 + (index % 2) * 470;
+      const y = 480 + Math.floor(index / 2) * 150;
+      drawRoundRect(ctx, x, y, 430, 120, 16, ["#ffe3ed", "#e9f8f0", "#fff3bd", "#f0eaff"][index], "#241d2f");
+      ctx.fillStyle = "#241d2f";
+      ctx.font = `900 52px ${font}`;
+      ctx.fillText(String(value), x + 28, y + 55);
+      ctx.font = `700 20px ${font}`;
+      ctx.fillStyle = "#6d6479";
+      ctx.fillText(label, x + 28, y + 92);
+    });
+
+    ctx.fillStyle = "#241d2f";
+    ctx.font = `900 30px ${font}`;
+    ctx.fillText("年度关键词", 80, 825);
+    ctx.font = `700 22px ${font}`;
+    const tags = data.topTags.slice(0, 6).map(([tag, count]) => `${tag} ×${count}`).join("  ·  ") || "还没有记录标签";
+    drawWrapped(ctx, tags, 80, 868, 900, 38, 2);
+
+    ctx.font = `900 30px ${font}`;
+    ctx.fillText("年度高分", 80, 975);
+    data.topWorks.slice(0, 3).forEach((item, index) => {
+      const y = 1028 + index * 104;
+      ctx.fillStyle = "#241d2f";
+      ctx.font = `900 24px ${font}`;
+      ctx.fillText(`0${index + 1}`, 80, y);
+      ctx.font = `900 29px ${font}`;
+      drawWrapped(ctx, item.title, 132, y, 720, 36, 1);
+      ctx.fillStyle = "#e94f8a";
+      ctx.font = `800 23px ${font}`;
+      ctx.fillText(item.rating ? `${item.rating} / 5` : "未评分", 900, y);
+    });
+
+    ctx.strokeStyle = "rgba(36,29,47,.25)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(80, 1330);
+    ctx.lineTo(1000, 1330);
+    ctx.stroke();
+    ctx.fillStyle = "#6d6479";
+    ctx.font = `700 20px ${font}`;
+    ctx.fillText("番迹 · 把看过的故事，留在这里。", 80, 1368);
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `fanji-year-${data.year}.png`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+      toast("年度海报已生成");
+    }, "image/png");
+  }
+
+  function bindYearReviewEvents() {
+    [els.yearReviewBtn, els.yearReviewBtnFooter].forEach((button) => {
+      if (button) button.addEventListener("click", openYearReview);
+    });
+    els.yearReviewBody.addEventListener("click", (event) => {
+      const nav = event.target.closest("[data-year-nav]");
+      if (nav) {
+        const years = reviewYears();
+        const next = years[years.indexOf(Number(state.yearReviewYear)) + Number(nav.dataset.yearNav)];
+        if (next) {
+          state.yearReviewYear = next;
+          renderYearReview();
+          els.yearReviewBody.scrollTop = 0;
+        }
+        return;
+      }
+      const item = event.target.closest("[data-open-item]");
+      if (item) {
+        closeModal(els.yearReviewModal);
+        openDetail(item.dataset.openItem);
+        return;
+      }
+      if (event.target.closest("#yearPosterBtn")) {
+        downloadYearPoster(reviewData(state.yearReviewYear));
+        return;
+      }
+      if (event.target.closest("#yearCopyBtn")) {
+        copyYearCaption(reviewData(state.yearReviewYear));
+      }
+    });
+  }
+
+
   function bindBackupEvents() {
     els.backupBtn.addEventListener("click", openBackup);
     const headerBackup = $("#backupHeaderBtn");
@@ -1962,6 +2315,7 @@
     bindCinemaEvents();
     bindShareEvents();
     bindBackupEvents();
+    bindYearReviewEvents();
     els.addBtn.addEventListener("click", () => openForm());
     els.heroAddBtn.addEventListener("click", () => openForm());
     els.demoBtn.addEventListener("click", loadDemo);

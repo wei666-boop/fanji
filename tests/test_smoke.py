@@ -3,14 +3,15 @@ from __future__ import annotations
 import io
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import time
 import unittest
 import urllib.error
 import urllib.request
+import uuid
 import zipfile
 from pathlib import Path
 
@@ -26,9 +27,10 @@ def free_port() -> int:
 class SmokeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.temp = tempfile.TemporaryDirectory(prefix="fanji-test-")
-        cls.data_dir = Path(cls.temp.name) / "data"
-        cls.ready = Path(cls.temp.name) / "ready.json"
+        cls.temp_dir = ROOT / f"smoke-data-{uuid.uuid4().hex[:8]}"
+        cls.temp_dir.mkdir()
+        cls.data_dir = cls.temp_dir / "data"
+        cls.ready = cls.temp_dir / "ready.json"
         cls.port = free_port()
         env = os.environ.copy()
         env.update({
@@ -76,7 +78,7 @@ class SmokeTest(unittest.TestCase):
                 cls.process.wait(timeout=8)
             except subprocess.TimeoutExpired:
                 cls.process.kill()
-        cls.temp.cleanup()
+        shutil.rmtree(cls.temp_dir, ignore_errors=True)
 
     def request(self, path: str, method: str = "GET", payload: dict | None = None):
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
