@@ -113,15 +113,16 @@ data/
 
 ```bash
 python -m unittest discover -s tests -v
+ruff check appcore tests
 ```
 
-Windows 下 CI 会使用临时数据目录启动真实服务，验证健康检查、创建条目、完整备份导出和恢复。
+Windows 下 CI 会使用临时数据目录启动真实服务，验证健康检查、创建条目、完整备份导出和恢复；同时运行 Ruff 和 JavaScript 语法检查。
 
 ## 项目结构
 
 ```
 appcore/             Python 服务、桌面启动器、分享服务
-static/              页面、样式、脚本
+static/              页面、样式、脚本（含年度海报 poster.js）
 scripts/             快捷方式和 cloudflared 安装脚本
 tests/               smoke tests
 docs/screenshots/    使用示例数据生成的公开截图

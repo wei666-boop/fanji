@@ -12,7 +12,6 @@ import hmac
 import html
 import json
 import mimetypes
-import os
 import re
 import secrets
 import shutil
@@ -231,7 +230,7 @@ class ShareHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, server_address, handler, manager: "ShareManager") -> None:
+    def __init__(self, server_address, handler, manager: ShareManager) -> None:
         super().__init__(server_address, handler)
         self.manager = manager
 
@@ -244,7 +243,7 @@ class ShareHandler(BaseHTTPRequestHandler):
         return
 
     @property
-    def manager(self) -> "ShareManager":
+    def manager(self) -> ShareManager:
         return self.server.manager
 
     # ---- helpers ---------------------------------------------------------

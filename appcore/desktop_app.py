@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """番迹桌面版启动器。
 
 启动本地 Python 服务，然后打开无地址栏、无标签页的 Edge 应用窗口。

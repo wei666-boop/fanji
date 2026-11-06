@@ -11,6 +11,7 @@
 ```bash
 python appcore/app.py
 python -m unittest discover -s tests -v
+ruff check appcore tests
 ```
 
 ## 提交前

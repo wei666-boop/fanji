@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """番迹 · Anime Archive
 
 一个完全本地运行的动漫收藏馆。数据保存在 data/anime.json，
@@ -37,7 +36,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from share_server import ShareManager, ShareError
+from share_server import ShareError, ShareManager
 
 BASE_DIR = Path(os.environ.get("FANJI_BASE_DIR") or Path(__file__).resolve().parent.parent).expanduser().resolve()
 STATIC_DIR = Path(os.environ.get("FANJI_STATIC_DIR") or (BASE_DIR / "static")).expanduser().resolve()
@@ -144,13 +143,13 @@ def save_db(data: dict) -> None:
 
 
 def backup_database(reason: str = "manual") -> Path | None:
+    """旧版 JSON 备份入口，仅保留给外部脚本兼容；新流程使用完整 ZIP。"""
     if not DB_FILE.exists():
         return None
     ensure_dirs()
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     target = BACKUP_DIR / f"anime-{reason}-{stamp}.json"
     shutil.copy2(DB_FILE, target)
-    # 只保留最近 30 份旧版 JSON 备份
     backups = sorted(BACKUP_DIR.glob("anime-*.json"))
     for old in backups[:-30]:
         try:
@@ -319,7 +318,7 @@ def _safe_extract(archive: zipfile.ZipFile, target_dir: Path) -> None:
         try:
             destination.relative_to(target_dir.resolve())
         except ValueError:
-            raise ApiError(400, "备份文件包含不安全的路径")
+            raise ApiError(400, "备份文件包含不安全的路径") from None
         destination.parent.mkdir(parents=True, exist_ok=True)
         with archive.open(info) as source, destination.open("wb") as output:
             shutil.copyfileobj(source, output)
@@ -806,7 +805,7 @@ class AnimeHandler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
-            raise ApiError(400, "请求长度不正确")
+            raise ApiError(400, "请求长度不正确") from None
         if length <= 0:
             raise ApiError(400, "请求内容为空")
         if length > MAX_BODY_BYTES:
@@ -824,7 +823,7 @@ class AnimeHandler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
-            raise ApiError(400, "请求长度不正确")
+            raise ApiError(400, "请求长度不正确") from None
         if length <= 0:
             raise ApiError(400, "请求内容为空")
         if length > max_bytes:
@@ -1219,7 +1218,7 @@ class AnimeHandler(BaseHTTPRequestHandler):
         try:
             candidate.relative_to(STATIC_DIR.resolve())
         except ValueError:
-            raise ApiError(404, "页面不存在")
+            raise ApiError(404, "页面不存在") from None
         if candidate.is_dir():
             candidate = candidate / "index.html"
         if not candidate.is_file():
@@ -1255,7 +1254,7 @@ class AnimeHandler(BaseHTTPRequestHandler):
                 start = int(start_text) if start_text else 0
                 end = int(end_text) if end_text else size - 1
             except ValueError:
-                raise ApiError(416, "音频范围不正确")
+                raise ApiError(416, "音频范围不正确") from None
             if start < 0 or start >= size:
                 raise ApiError(416, "音频范围不正确")
             end = min(end, size - 1)
