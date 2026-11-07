@@ -1,4 +1,4 @@
-/* 年度海报绘制：只负责 Canvas 排版，不依赖应用状态。 */
+/* 年度海报：Canvas 排版 + 预览 + 下载。不依赖应用状态。 */
 (() => {
   "use strict";
 
@@ -6,6 +6,9 @@
   const initialOf = (title) => Array.from(String(title || "").trim())[0] || "?";
   const safeAccent = (value) => /^#[0-9a-f]{6}$/i.test(value || "") ? value : "#8b5cf6";
   let notify = () => {};
+  let controls = { openModal: null, closeModal: null };
+  let preview = null;
+  let generation = 0;
 
   function toast(message, type, duration) {
     notify(message, type, duration);
@@ -45,8 +48,16 @@
     if (!item || !item.coverUrl) return Promise.resolve(null);
     return new Promise((resolve) => {
       const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => resolve(null);
+      let settled = false;
+      const done = (value) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(value);
+      };
+      const timer = window.setTimeout(() => done(null), 6000);
+      image.onload = () => done(image);
+      image.onerror = () => done(null);
       image.src = item.coverUrl;
     });
   }
@@ -157,171 +168,312 @@
     ctx.restore();
   }
 
-  async function downloadYearPoster(data) {
-    const button = $("#yearPosterBtn");
-    if (button) button.disabled = true;
-    toast("正在生成年度海报…");
-    try {
-      const images = await Promise.all(data.topWorks.slice(0, 4).map(loadPosterImage));
-      const canvas = document.createElement("canvas");
-      canvas.width = 1080;
-      canvas.height = 1440;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      const font = '"Microsoft YaHei", "PingFang SC", sans-serif';
-      const ink = "#241d2f";
-      const accent = safeAccent(data.topWorks[0] && data.topWorks[0].accent || "#ff5d9e");
+  async function buildPosterCanvas(data) {
+    const images = await Promise.all(data.topWorks.slice(0, 4).map(loadPosterImage));
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1440;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("poster canvas unavailable");
+    const font = '"Microsoft YaHei", "PingFang SC", sans-serif';
+    const ink = "#241d2f";
+    const accent = safeAccent(data.topWorks[0] && data.topWorks[0].accent || "#ff5d9e");
 
-      ctx.fillStyle = "#fff7e8";
-      ctx.fillRect(0, 0, 1080, 1440);
-      ctx.fillStyle = "rgba(36,29,47,.055)";
-      for (let y = 70; y < 1400; y += 34) {
-        for (let x = 52; x < 1040; x += 34) {
-          ctx.beginPath();
-          ctx.arc(x, y, 1.35, 0, Math.PI * 2);
-          ctx.fill();
-        }
+    ctx.fillStyle = "#fff7e8";
+    ctx.fillRect(0, 0, 1080, 1440);
+    ctx.fillStyle = "rgba(36,29,47,.055)";
+    for (let y = 70; y < 1400; y += 34) {
+      for (let x = 52; x < 1040; x += 34) {
+        ctx.beginPath();
+        ctx.arc(x, y, 1.35, 0, Math.PI * 2);
+        ctx.fill();
       }
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = 7;
-      ctx.strokeRect(26, 26, 1028, 1388);
-      ctx.fillStyle = "#ff5d9e";
-      ctx.fillRect(26, 26, 1028, 17);
-      ctx.fillStyle = "#ffd84d";
-      ctx.fillRect(76, 76, 188, 23);
-      ctx.fillStyle = ink;
-      ctx.font = `900 22px ${font}`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.fillText("YEAR IN REVIEW / 我的动漫年度总结", 76, 126);
+    }
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 7;
+    ctx.strokeRect(26, 26, 1028, 1388);
+    ctx.fillStyle = "#ff5d9e";
+    ctx.fillRect(26, 26, 1028, 17);
+    ctx.fillStyle = "#ffd84d";
+    ctx.fillRect(76, 76, 188, 23);
+    ctx.fillStyle = ink;
+    ctx.font = `900 22px ${font}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("YEAR IN REVIEW / 我的动漫年度总结", 76, 126);
 
-      ctx.font = `900 176px ${font}`;
-      ctx.fillText(String(data.year), 68, 168);
-      ctx.font = `900 34px ${font}`;
-      ctx.fillText("看过的故事，都算数。", 76, 365);
+    ctx.font = `900 176px ${font}`;
+    ctx.fillText(String(data.year), 68, 168);
+    ctx.font = `900 34px ${font}`;
+    ctx.fillText("看过的故事，都算数。", 76, 365);
+    ctx.fillStyle = "#6d6479";
+    ctx.font = `700 17px ${font}`;
+    ctx.fillText(`${data.items.length} 部作品 · ${data.episodes} 集 · 平均 ${data.average} 分`, 76, 411);
+
+    posterStar(ctx, 540, 226, 18, "#ffd84d");
+    posterStar(ctx, 560, 278, 9, "#ff8fb8");
+    posterStar(ctx, 1004, 330, 15, "#b79bff");
+
+    const stats = [
+      ["部作品", data.items.length, "#ffe3ed"],
+      ["集动画", data.episodes, "#e9f8f0"],
+      ["平均分", data.average, "#fff3bd"],
+      ["最高分", data.highest || "—", "#f0eaff"],
+    ];
+    stats.forEach(([label, value, color], index) => {
+      const x = 76 + (index % 2) * 224;
+      const y = 455 + Math.floor(index / 2) * 116;
+      drawRoundRect(ctx, x, y, 210, 100, 13, color, ink);
+      ctx.fillStyle = ink;
+      ctx.font = `900 43px ${font}`;
+      ctx.fillText(String(value), x + 19, y + 22);
       ctx.fillStyle = "#6d6479";
-      ctx.font = `700 17px ${font}`;
-      ctx.fillText(`${data.items.length} 部作品 · ${data.episodes} 集 · 平均 ${data.average} 分`, 76, 411);
+      ctx.font = `700 16px ${font}`;
+      ctx.fillText(label, x + 19, y + 74);
+    });
 
-      posterStar(ctx, 540, 226, 18, "#ffd84d");
-      posterStar(ctx, 560, 278, 9, "#ff8fb8");
-      posterStar(ctx, 1004, 330, 15, "#b79bff");
+    const cardPositions = [
+      [598, 276, -4], [806, 294, 3], [608, 552, 3], [816, 570, -3],
+    ];
+    data.topWorks.slice(0, 4).forEach((item, index) => {
+      const position = cardPositions[index];
+      posterCoverCard(ctx, item, images[index], position[0], position[1], 218, 270, position[2], index);
+    });
+    if (data.topWorks.length < 4) {
+      posterTape(ctx, 700, 285, 90, -2);
+    }
 
-      const stats = [
-        ["部作品", data.items.length, "#ffe3ed"],
-        ["集动画", data.episodes, "#e9f8f0"],
-        ["平均分", data.average, "#fff3bd"],
-        ["最高分", data.highest || "—", "#f0eaff"],
-      ];
-      stats.forEach(([label, value, color], index) => {
-        const x = 76 + (index % 2) * 224;
-        const y = 455 + Math.floor(index / 2) * 116;
-        drawRoundRect(ctx, x, y, 210, 100, 13, color, ink);
-        ctx.fillStyle = ink;
-        ctx.font = `900 43px ${font}`;
-        ctx.fillText(String(value), x + 19, y + 22);
-        ctx.fillStyle = "#6d6479";
-        ctx.font = `700 16px ${font}`;
-        ctx.fillText(label, x + 19, y + 74);
-      });
-
-      const cardPositions = [
-        [598, 276, -4], [806, 294, 3], [608, 552, 3], [816, 570, -3],
-      ];
-      data.topWorks.slice(0, 4).forEach((item, index) => {
-        const position = cardPositions[index];
-        posterCoverCard(ctx, item, images[index], position[0], position[1], 218, 270, position[2], index);
-      });
-      if (data.topWorks.length < 4) {
-        posterTape(ctx, 700, 285, 90, -2);
+    ctx.fillStyle = ink;
+    ctx.font = `900 27px ${font}`;
+    ctx.fillText("年度关键词", 76, 710);
+    const tagColors = ["#ffe3ed", "#e9f8f0", "#fff3bd", "#f0eaff", "#e4f6ff"];
+    let tagX = 76;
+    let tagY = 754;
+    data.topTags.slice(0, 6).forEach(([tag, count], index) => {
+      const label = `${tag} ${count}`;
+      ctx.font = `700 18px ${font}`;
+      const width = ctx.measureText(label).width + 24;
+      if (tagX + width > 520) {
+        tagX = 76;
+        tagY += 38;
       }
-
+      drawRoundRect(ctx, tagX, tagY, width, 30, 6, tagColors[index % tagColors.length], "rgba(36,29,47,.2)");
       ctx.fillStyle = ink;
-      ctx.font = `900 27px ${font}`;
-      ctx.fillText("年度关键词", 76, 710);
-      const tagColors = ["#ffe3ed", "#e9f8f0", "#fff3bd", "#f0eaff", "#e4f6ff"];
-      let tagX = 76;
-      let tagY = 754;
-      data.topTags.slice(0, 6).forEach(([tag, count], index) => {
-        const label = `${tag} ${count}`;
-        ctx.font = `700 18px ${font}`;
-        const width = ctx.measureText(label).width + 24;
-        if (tagX + width > 520) {
-          tagX = 76;
-          tagY += 38;
-        }
-        drawRoundRect(ctx, tagX, tagY, width, 30, 6, tagColors[index % tagColors.length], "rgba(36,29,47,.2)");
-        ctx.fillStyle = ink;
-        ctx.font = `700 18px ${font}`;
-        ctx.fillText(label, tagX + 12, tagY + 7);
-        tagX += width + 8;
-      });
-      if (!data.topTags.length) {
-        ctx.fillStyle = "#6d6479";
-        ctx.font = `700 19px ${font}`;
-        ctx.fillText("这一年还没有记录标签", 76, 764);
-      }
+      ctx.font = `700 18px ${font}`;
+      ctx.fillText(label, tagX + 12, tagY + 7);
+      tagX += width + 8;
+    });
+    if (!data.topTags.length) {
+      ctx.fillStyle = "#6d6479";
+      ctx.font = `700 19px ${font}`;
+      ctx.fillText("这一年还没有记录标签", 76, 764);
+    }
 
-      drawRoundRect(ctx, 76, 884, 928, 286, 16, "#fffaf0", "rgba(36,29,47,.35)");
+    drawRoundRect(ctx, 76, 884, 928, 286, 16, "#fffaf0", "rgba(36,29,47,.35)");
+    ctx.fillStyle = "#e94f8a";
+    ctx.font = `900 13px ${font}`;
+    ctx.fillText("HIGHLIGHTS", 100, 904);
+    ctx.fillStyle = ink;
+    ctx.font = `900 28px ${font}`;
+    ctx.fillText("年度高分", 100, 930);
+    data.topWorks.slice(0, 4).forEach((item, index) => {
+      const y = 986 + index * 46;
       ctx.fillStyle = "#e94f8a";
-      ctx.font = `900 13px ${font}`;
-      ctx.fillText("HIGHLIGHTS", 100, 904);
+      ctx.font = `900 20px ${font}`;
+      ctx.fillText(`0${index + 1}`, 102, y);
       ctx.fillStyle = ink;
-      ctx.font = `900 28px ${font}`;
-      ctx.fillText("年度高分", 100, 930);
-      data.topWorks.slice(0, 4).forEach((item, index) => {
-        const y = 986 + index * 46;
-        ctx.fillStyle = "#e94f8a";
-        ctx.font = `900 20px ${font}`;
-        ctx.fillText(`0${index + 1}`, 102, y);
-        ctx.fillStyle = ink;
-        ctx.font = `800 24px ${font}`;
-        drawWrapped(ctx, item.title, 150, y - 2, 650, 28, 1);
-        ctx.fillStyle = "#e94f8a";
-        ctx.font = `800 20px ${font}`;
-        ctx.textAlign = "right";
-        ctx.fillText(item.rating ? `${item.rating} / 5` : "未评分", 978, y);
-        ctx.textAlign = "left";
-      });
-
-      ctx.fillStyle = ink;
-      ctx.fillRect(26, 1212, 1028, 202);
-      ctx.fillStyle = accent;
-      ctx.fillRect(26, 1212, 1028, 7);
-      ctx.fillStyle = "#fff9ef";
-      ctx.font = `900 34px ${font}`;
-      ctx.fillText("番迹", 76, 1252);
-      ctx.fillStyle = "rgba(255,249,239,.58)";
-      ctx.font = `700 14px ${font}`;
-      ctx.fillText("FANJI / ANIME ARCHIVE", 76, 1300);
-      ctx.fillStyle = "#fff9ef";
-      ctx.font = `700 24px ${font}`;
-      ctx.fillText("把看过的故事，留在这里。", 76, 1348);
-      ctx.fillStyle = "rgba(255,249,239,.55)";
-      ctx.font = `700 13px ${font}`;
-      ctx.fillText(`MY ANIME YEAR · ${data.year}`, 76, 1382);
+      ctx.font = `800 24px ${font}`;
+      drawWrapped(ctx, item.title, 150, y - 2, 650, 28, 1);
+      ctx.fillStyle = "#e94f8a";
+      ctx.font = `800 20px ${font}`;
       ctx.textAlign = "right";
-      ctx.fillStyle = "#ffd84d";
-      ctx.font = `900 30px ${font}`;
-      ctx.fillText(String(data.year), 1000, 1330);
+      ctx.fillText(item.rating ? `${item.rating} / 5` : "未评分", 978, y);
       ctx.textAlign = "left";
+    });
 
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          toast("海报生成失败，请稍后再试", "error");
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = `fanji-year-${data.year}.png`;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1200);
-        toast("年度海报已生成");
-      }, "image/png");
+    ctx.fillStyle = ink;
+    ctx.fillRect(26, 1212, 1028, 202);
+    ctx.fillStyle = accent;
+    ctx.fillRect(26, 1212, 1028, 7);
+    ctx.fillStyle = "#fff9ef";
+    ctx.font = `900 34px ${font}`;
+    ctx.fillText("番迹", 76, 1252);
+    ctx.fillStyle = "rgba(255,249,239,.58)";
+    ctx.font = `700 14px ${font}`;
+    ctx.fillText("FANJI / ANIME ARCHIVE", 76, 1300);
+    ctx.fillStyle = "#fff9ef";
+    ctx.font = `700 24px ${font}`;
+    ctx.fillText("把看过的故事，留在这里。", 76, 1348);
+    ctx.fillStyle = "rgba(255,249,239,.55)";
+    ctx.font = `700 13px ${font}`;
+    ctx.fillText(`MY ANIME YEAR · ${data.year}`, 76, 1382);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#ffd84d";
+    ctx.font = `900 30px ${font}`;
+    ctx.fillText(String(data.year), 1000, 1330);
+    ctx.textAlign = "left";
+
+    return canvas;
+  }
+
+  function canvasToBlob(canvas) {
+    return new Promise((resolve) => {
+      if (typeof canvas.toBlob !== "function") {
+        resolve(null);
+        return;
+      }
+      canvas.toBlob((blob) => resolve(blob || null), "image/png");
+    });
+  }
+
+  function formatSize(bytes) {
+    const size = Number(bytes) || 0;
+    if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`;
+    return `${Math.max(1, Math.round(size / 1024))} KB`;
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function clearPreview() {
+    const image = $("#posterPreviewImg");
+    if (preview && preview.url) URL.revokeObjectURL(preview.url);
+    preview = null;
+    if (image) image.removeAttribute("src");
+  }
+
+  function setLoading(loading) {
+    const modal = $("#posterModal");
+    if (modal) modal.classList.toggle("is-loading", loading);
+    const download = $("#posterDownloadBtn");
+    if (download) download.disabled = loading;
+  }
+
+  function openPreviewModal(modal) {
+    if (typeof controls.openModal === "function") {
+      controls.openModal(modal);
+      return;
+    }
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("is-locked");
+    const target = $("#posterDownloadBtn") || modal.querySelector("button");
+    if (target) window.setTimeout(() => target.focus({ preventScroll: true }), 60);
+  }
+
+  function closePreviewModal() {
+    const modal = $("#posterModal");
+    if (!modal || modal.hidden) return;
+    generation += 1;
+    if (typeof controls.closeModal === "function") {
+      controls.closeModal(modal);
+      return;
+    }
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    if (!document.querySelector(".modal:not([hidden])")) document.body.classList.remove("is-locked");
+  }
+
+  function savePreview() {
+    if (!preview) {
+      toast("海报还没有准备好，请重新生成", "error");
+      return;
+    }
+    triggerDownload(preview.blob, preview.name);
+    closePreviewModal();
+    toast("年度海报已开始下载");
+  }
+
+  function ensurePreviewWiring() {
+    const modal = $("#posterModal");
+    if (!modal || modal.dataset.posterWired === "1") return;
+    modal.dataset.posterWired = "1";
+    modal.addEventListener("click", (event) => {
+      if (event.target.closest("[data-close]")) closePreviewModal();
+    });
+    const downloadButton = $("#posterDownloadBtn");
+    if (downloadButton) downloadButton.addEventListener("click", savePreview);
+    new MutationObserver(() => {
+      if (!modal.hidden) return;
+      clearPreview();
+      setLoading(false);
+    }).observe(modal, { attributes: true, attributeFilter: ["hidden"] });
+  }
+
+  function showPreview(blob, filename, year) {
+    const modal = $("#posterModal");
+    const image = $("#posterPreviewImg");
+    if (!modal || !image) {
+      // 预览容器缺失时退回直接下载，不阻断用户。
+      triggerDownload(blob, filename);
+      toast("年度海报已开始下载");
+      return;
+    }
+    // 生成期间用户已经关闭预览：不再挂载图片。
+    if (modal.hidden) return;
+    clearPreview();
+    const url = URL.createObjectURL(blob);
+    preview = { blob, url, name: filename };
+    image.src = url;
+    image.alt = `${year} 年度海报预览`;
+    const size = $("#posterPreviewSize");
+    if (size) size.textContent = `PNG · 约 ${formatSize(blob.size)}`;
+    setLoading(false);
+  }
+
+  async function previewYearPoster(data) {
+    if (!data || !Array.isArray(data.topWorks)) {
+      toast("海报生成失败，请稍后再试", "error");
+      return;
+    }
+    ensurePreviewWiring();
+    const modal = $("#posterModal");
+    const button = $("#yearPosterBtn");
+
+    if (!modal || !$("#posterPreviewImg")) {
+      // 没有预览容器时退回「生成即下载」。
+      if (button) button.disabled = true;
+      try {
+        const canvas = await buildPosterCanvas(data);
+        const blob = await canvasToBlob(canvas);
+        if (!blob) throw new Error("poster blob failed");
+        triggerDownload(blob, `fanji-year-${data.year}.png`);
+        toast("年度海报已开始下载");
+      } catch {
+        toast("海报生成失败，请稍后再试", "error");
+      } finally {
+        if (button) button.disabled = false;
+      }
+      return;
+    }
+
+    const token = ++generation;
+    if (button) button.disabled = true;
+    clearPreview();
+    setLoading(true);
+    const size = $("#posterPreviewSize");
+    if (size) size.textContent = "正在生成…";
+    openPreviewModal(modal);
+
+    try {
+      const canvas = await buildPosterCanvas(data);
+      const blob = await canvasToBlob(canvas);
+      if (token !== generation) return;
+      if (!blob) throw new Error("poster blob failed");
+      showPreview(blob, `fanji-year-${data.year}.png`, data.year);
     } catch {
+      if (token !== generation) return;
+      setLoading(false);
+      closePreviewModal();
       toast("海报生成失败，请稍后再试", "error");
     } finally {
       if (button) button.disabled = false;
@@ -329,9 +481,13 @@
   }
 
   window.FanjiPoster = {
-    download(data, options = {}) {
+    preview(data, options = {}) {
       notify = typeof options.toast === "function" ? options.toast : () => {};
-      return downloadYearPoster(data);
+      controls = {
+        openModal: typeof options.openModal === "function" ? options.openModal : null,
+        closeModal: typeof options.closeModal === "function" ? options.closeModal : null,
+      };
+      return previewYearPoster(data);
     },
   };
 })();

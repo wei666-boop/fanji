@@ -1953,7 +1953,7 @@
       </section>
 
       <div class="year-actions">
-        <button class="btn btn-primary" id="yearPosterBtn" type="button">${icon("icon-image")}保存年度海报</button>
+        <button class="btn btn-primary" id="yearPosterBtn" type="button">${icon("icon-image")}预览年度海报</button>
         <button class="btn btn-ghost" id="yearCopyBtn" type="button">${icon("icon-copy")}复制年度文案</button>
       </div>
       <p class="year-footnote">年度总结按「看完年份」统计 · 生成于番迹</p>`;
@@ -1990,12 +1990,12 @@
     }
   }
 
-  function downloadYearPoster(data) {
+  function previewYearPoster(data) {
     if (!window.FanjiPoster) {
       toast("年度海报组件没有加载，请刷新页面", "error");
       return;
     }
-    window.FanjiPoster.download(data, { toast });
+    window.FanjiPoster.preview(data, { toast, openModal, closeModal });
   }
 
   function bindYearReviewEvents() {
@@ -2021,7 +2021,7 @@
         return;
       }
       if (event.target.closest("#yearPosterBtn")) {
-        downloadYearPoster(reviewData(state.yearReviewYear));
+        previewYearPoster(reviewData(state.yearReviewYear));
         return;
       }
       if (event.target.closest("#yearCopyBtn")) {

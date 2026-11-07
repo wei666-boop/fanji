@@ -449,6 +449,46 @@
     </div>
   </div>
 
+  <!-- 年度海报预览 -->
+  <div class="modal" id="posterModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-dialog poster-dialog" role="dialog" aria-modal="true" aria-labelledby="posterTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">POSTER PREVIEW / 海报预览</p>
+          <h2 id="posterTitle">先看看，再保存</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="关闭海报预览">
+          <svg class="icon"><use href="#icon-close"/></svg>
+        </button>
+      </div>
+
+      <div class="poster-preview-body">
+        <div class="poster-preview-frame">
+          <img id="posterPreviewImg" alt="年度海报预览" width="1080" height="1440" decoding="async">
+          <span class="poster-loading" aria-hidden="true">
+            <i class="poster-spinner"></i>正在生成海报…
+          </span>
+        </div>
+        <div class="poster-preview-meta">
+          <span>1080 × 1440</span>
+          <span id="posterPreviewSize">正在生成…</span>
+        </div>
+        <p class="poster-preview-hint">确认画面无误后再下载，海报会保存到浏览器的下载目录。</p>
+      </div>
+
+      <div class="modal-foot">
+        <span class="poster-foot-note">先预览，再下载</span>
+        <div class="modal-foot-actions">
+          <button class="btn btn-ghost" type="button" data-close>返回</button>
+          <button class="btn btn-primary" id="posterDownloadBtn" type="button">
+            <svg class="icon"><use href="#icon-download"/></svg>下载海报
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 备份与恢复 -->
   <div class="modal" id="backupModal" hidden>
     <div class="modal-backdrop" data-close></div>
