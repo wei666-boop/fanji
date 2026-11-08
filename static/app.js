@@ -50,6 +50,7 @@
     loadError: false,
     demoLoading: false,
     pendingDelete: null,
+    pendingSave: null,
     pendingImport: null,
     pendingImportFile: null,
     pendingBackupName: null,
@@ -813,6 +814,7 @@
     state.coverRemoved = false;
     state.rating = item ? Number(item.rating) || 0 : 0;
     state.submitting = false;
+    state.pendingSave = null;
 
     els.form.reset();
     els.formError.hidden = true;
@@ -975,6 +977,26 @@
     });
   }
 
+  function normalizeTitleValue(value) {
+    return String(value ?? "")
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[\s\u3000]+/g, "")
+      .replace(/[!！?？。.,，、·・:：;；'"“”‘’()（）\[\]【】《》〈〉「」『』\-—_~～]/g, "");
+  }
+
+  // 同名或同名别名视为可能重复；只做提示，不阻止保存。
+  function findDuplicateItem(title, altTitle, excludeId) {
+    const targets = [normalizeTitleValue(title), normalizeTitleValue(altTitle)].filter(Boolean);
+    if (!targets.length) return null;
+    return state.items.find((item) => {
+      if (excludeId && item.id === excludeId) return false;
+      return [item.title, item.altTitle]
+        .map((value) => normalizeTitleValue(value))
+        .some((value) => value && targets.includes(value));
+    }) || null;
+  }
+
   async function submitForm(event) {
     event.preventDefault();
     if (state.submitting) return;
@@ -1006,6 +1028,27 @@
     else if (state.editingId && state.coverRemoved) payload.removeCover = true;
 
     const editing = Boolean(state.editingId);
+    const duplicate = findDuplicateItem(title, payload.altTitle, state.editingId);
+    if (duplicate) {
+      state.pendingSave = { payload, editing };
+      openConfirm({
+        mode: "duplicate",
+        title: "好像已经记录过",
+        text: editing
+          ? `手帐里已经有《${duplicate.title}》，仍然保存这次修改吗？`
+          : `手帐里已经有《${duplicate.title}》。如果这是另一部作品，可以继续添加。`,
+        okLabel: editing ? "仍然保存" : "仍然添加",
+        cancelLabel: "返回修改",
+        okTone: "primary",
+        iconName: "icon-search",
+      });
+      return;
+    }
+
+    persistItem(payload, editing);
+  }
+
+  async function persistItem(payload, editing) {
     state.submitting = true;
     els.formError.hidden = true;
     setSaveLabel(true, editing);
@@ -1045,12 +1088,16 @@
   // 删除 / 示例 / 导入
   // ------------------------------------------------------------------
 
-  function openConfirm({ mode, title, text, okLabel }) {
+  function openConfirm({ mode, title, text, okLabel, cancelLabel, okTone = "danger", iconName = "icon-trash" }) {
     state.confirmMode = mode;
     state.confirmBusy = false;
     els.confirmTitle.textContent = title;
     els.confirmText.textContent = text;
     els.confirmOk.textContent = okLabel;
+    els.confirmOk.className = okTone === "primary" ? "btn btn-primary" : "btn btn-danger";
+    els.confirmCancel.textContent = cancelLabel || "再想想";
+    const iconUse = $(".confirm-icon use", els.confirmModal);
+    if (iconUse) iconUse.setAttribute("href", `#${iconName}`);
     els.confirmOk.disabled = false;
     els.confirmCancel.disabled = false;
     openModal(els.confirmModal, "#confirmCancel");
@@ -1086,6 +1133,13 @@
 
   async function handleConfirm() {
     if (state.confirmBusy) return;
+    if (state.confirmMode === "duplicate") {
+      const pending = state.pendingSave;
+      state.pendingSave = null;
+      closeModal(els.confirmModal, { force: true });
+      if (pending) persistItem(pending.payload, pending.editing);
+      return;
+    }
     if (state.confirmMode === "delete") {
       const item = state.items.find((entry) => entry.id === state.pendingDelete);
       setConfirmBusy(true, "撕掉中…");
@@ -2639,7 +2693,15 @@
     });
 
     els.confirmOk.addEventListener("click", handleConfirm);
-    els.confirmCancel.addEventListener("click", () => closeModal(els.confirmModal));
+    els.confirmCancel.addEventListener("click", () => {
+      const mode = state.confirmMode;
+      state.pendingSave = null;
+      closeModal(els.confirmModal);
+      if (mode === "duplicate" && !els.formModal.hidden) {
+        els.titleInput.focus();
+        els.titleInput.select();
+      }
+    });
 
     els.importTrigger.addEventListener("click", () => els.importInput.click());
     els.importInput.addEventListener("change", () => {
