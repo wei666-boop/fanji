@@ -571,7 +571,20 @@ kbd {
   background: var(--paper);
   box-shadow: 3px 3px 0 var(--ink);
   transform: rotate(-3deg);
+  cursor: pointer;
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
+
+.speech-bubble:hover {
+  transform: rotate(-1.5deg) translateY(-2px);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.speech-bubble b,
+.speech-bubble span { transition: opacity 0.22s ease, transform 0.22s ease; }
+
+.speech-bubble.is-swapping b,
+.speech-bubble.is-swapping span { opacity: 0; transform: translateY(-4px); }
 
 .speech-bubble b { display: block; font-size: 11.5px; font-weight: 900; line-height: 1.4; }
 .speech-bubble span { display: block; margin-top: 2px; color: var(--muted); font-family: var(--jp); font-size: 9px; letter-spacing: 0.08em; }

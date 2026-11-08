@@ -100,6 +100,9 @@
     demoBtn: $("#demoBtn"),
     addBtn: $("#addBtn"),
     heroAddBtn: $("#heroAddBtn"),
+    mascotBubble: $("#mascotBubble"),
+    mascotLine: $("#mascotLine"),
+    mascotLineJp: $("#mascotLineJp"),
     collection: $("#collection"),
     formModal: $("#formModal"),
     detailModal: $("#detailModal"),
@@ -281,12 +284,14 @@
       state.loadError = false;
       state.loading = false;
       renderAll();
+      startMascotRotation();
       if (options.toast) toast(options.toast);
     } catch (error) {
       state.loading = false;
       state.loadError = true;
       state.items = [];
       renderAll();
+      startMascotRotation();
       toast(error.message, "error", 5200);
     }
   }
@@ -718,6 +723,149 @@
     document.title = state.items.length
       ? `番迹 · 动漫手帐 · ${state.items.length} 部收藏`
       : "番迹 · 我的动漫手帐";
+  }
+
+  // ------------------------------------------------------------------
+  // 吉祥物气泡
+  // ------------------------------------------------------------------
+
+  const MASCOT_LINES = {
+    generic: [
+      { zh: "今天看什么？", jp: "なに観る？" },
+      { zh: "手帐又厚了一点", jp: "手帳が少し厚くなった" },
+      { zh: "慢慢看，不着急", jp: "ゆっくりでいいよ" },
+      { zh: "下一部看什么呢？", jp: "次は、なに観る？" },
+      { zh: "喜欢就贴在这里", jp: "好きを、ここに" },
+      { zh: "翻翻旧页也开心", jp: "昔のページも楽しい" },
+      { zh: "今天也要看番 ♡", jp: "今日もアニメ日和 ♡" },
+    ],
+    empty: [
+      { zh: "先记下第一部吧", jp: "最初の一冊を" },
+      { zh: "从一张封面开始", jp: "表紙から始めよう" },
+    ],
+    watching: [
+      { zh: "那部追到第几集了？", jp: "どこまで観た？" },
+      { zh: "今晚继续追吗？", jp: "今夜も続きを？" },
+    ],
+    done: [
+      { zh: "全部看完了，真厉害", jp: "全部観たんだ、すごい" },
+      { zh: "都看完了，然后呢？", jp: "次は、なに観る？" },
+    ],
+    morning: [
+      { zh: "早安，今天看什么？", jp: "おはよう、なに観る？" },
+    ],
+    night: [
+      { zh: "夜深了，看部安静的", jp: "夜は静かな作品を" },
+      { zh: "这个点，适合补番", jp: "夜更かしに、ちょうどいい" },
+    ],
+  };
+
+  let mascotTimer = 0;
+  let mascotLine = null;
+  let mascotStarted = false;
+
+  function mascotReducedMotion() {
+    if (state.settings.motion === "reduced") return true;
+    return typeof window.matchMedia === "function"
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function mascotPool() {
+    const total = state.items.length;
+    const watching = state.items.filter((item) => item.status === "watching").length;
+    const completed = state.items.filter((item) => item.status === "completed").length;
+    const hour = new Date().getHours();
+    const pool = MASCOT_LINES.generic.slice();
+    if (!total) {
+      pool.push(...MASCOT_LINES.empty);
+    } else {
+      if (watching > 0) pool.push(...MASCOT_LINES.watching);
+      if (completed === total) pool.push(...MASCOT_LINES.done);
+    }
+    if (hour >= 5 && hour < 11) pool.push(...MASCOT_LINES.morning);
+    else if (hour >= 22 || hour < 4) pool.push(...MASCOT_LINES.night);
+    return pool;
+  }
+
+  function pickMascotLine() {
+    const pool = mascotPool();
+    const options = pool.filter((line) => line !== mascotLine);
+    const source = options.length ? options : pool;
+    return source[Math.floor(Math.random() * source.length)] || null;
+  }
+
+  function applyMascotLine(line, instant = false) {
+    if (!line || !els.mascotLine || !els.mascotLineJp) return;
+    const write = () => {
+      els.mascotLine.textContent = line.zh;
+      els.mascotLineJp.textContent = line.jp;
+      mascotLine = line;
+    };
+    if (instant || mascotReducedMotion() || !els.mascotBubble) {
+      write();
+      return;
+    }
+    els.mascotBubble.classList.add("is-swapping");
+    window.setTimeout(() => {
+      write();
+      els.mascotBubble.classList.remove("is-swapping");
+    }, 220);
+  }
+
+  function stopMascotTimer() {
+    if (!mascotTimer) return;
+    window.clearTimeout(mascotTimer);
+    mascotTimer = 0;
+  }
+
+  function scheduleMascot() {
+    stopMascotTimer();
+    const delay = 9000 + Math.round(Math.random() * 5000);
+    mascotTimer = window.setTimeout(() => {
+      if (document.hidden) {
+        scheduleMascot();
+        return;
+      }
+      applyMascotLine(pickMascotLine());
+      scheduleMascot();
+    }, delay);
+  }
+
+  function startMascotRotation() {
+    mascotStarted = true;
+    if (mascotReducedMotion()) {
+      applyMascotLine(pickMascotLine(), true);
+      stopMascotTimer();
+      return;
+    }
+    scheduleMascot();
+  }
+
+  function syncMascotMotion() {
+    if (!mascotStarted) return;
+    if (mascotReducedMotion()) {
+      stopMascotTimer();
+      return;
+    }
+    scheduleMascot();
+  }
+
+  function bindMascotEvents() {
+    if (els.mascotBubble) {
+      els.mascotBubble.addEventListener("click", () => {
+        applyMascotLine(pickMascotLine());
+        if (!mascotReducedMotion()) scheduleMascot();
+      });
+      els.mascotBubble.addEventListener("mouseenter", stopMascotTimer);
+      els.mascotBubble.addEventListener("mouseleave", () => {
+        if (mascotStarted && !mascotReducedMotion()) scheduleMascot();
+      });
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (!mascotStarted) return;
+      if (document.hidden) stopMascotTimer();
+      else if (!mascotReducedMotion()) scheduleMascot();
+    });
   }
 
   // ------------------------------------------------------------------
@@ -1408,6 +1556,8 @@
     if (key === "defaultSort") {
       applyDefaultSort();
       renderCollection();
+    } else if (key === "motion") {
+      syncMascotMotion();
     }
   }
 
@@ -1424,6 +1574,7 @@
     applyDefaultSort();
     syncSettingsUI();
     renderCollection();
+    syncMascotMotion();
     toast("设置已经恢复默认");
   }
 
@@ -2528,6 +2679,7 @@
     bindBackupEvents();
     bindYearReviewEvents();
     bindSettingsEvents();
+    bindMascotEvents();
     els.addBtn.addEventListener("click", () => openForm());
     els.heroAddBtn.addEventListener("click", () => openForm());
     els.demoBtn.addEventListener("click", loadDemo);
@@ -2774,6 +2926,7 @@
       state.loading = false;
       state.loadError = true;
       renderAll();
+      startMascotRotation();
       return;
     }
     window.setTimeout(() => {
