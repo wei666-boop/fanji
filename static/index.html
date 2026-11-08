@@ -40,6 +40,7 @@
     <symbol id="icon-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4"/></symbol>
     <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></symbol>
     <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h3"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3.1V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15.6 4.6h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></symbol>
     <symbol id="mascot-tv" viewBox="0 0 240 210">
       <g stroke="#241d2f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M120 58 104 22" fill="none"/>
@@ -118,6 +119,9 @@
         <button class="btn btn-primary" id="addBtn" type="button">
           <svg class="icon"><use href="#icon-plus"/></svg>
           <span>添加动漫</span>
+        </button>
+        <button class="icon-btn settings-top-btn" id="settingsBtnTop" type="button" aria-label="设置" title="设置">
+          <svg class="icon"><use href="#icon-settings"/></svg>
         </button>
       </div>
     </header>
@@ -297,6 +301,10 @@
         <span>·</span>
         <button type="button" id="backupBtn">
           <svg class="icon"><use href="#icon-download"/></svg>备份与恢复
+        </button>
+        <span>·</span>
+        <button type="button" id="settingsBtn">
+          <svg class="icon"><use href="#icon-settings"/></svg>设置
         </button>
         <span>·</span>
         <button id="importTrigger" type="button">导入备份</button>
@@ -489,6 +497,92 @@
           <button class="btn btn-primary" id="posterDownloadBtn" type="button">
             <svg class="icon"><use href="#icon-download"/></svg>下载海报
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div class="modal" id="settingsModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">PREFERENCES / 设置</p>
+          <h2 id="settingsTitle">把手帐调成喜欢的样子</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="关闭设置">
+          <svg class="icon"><use href="#icon-close"/></svg>
+        </button>
+      </div>
+
+      <div class="settings-body" id="settingsBody">
+        <section class="settings-row">
+          <div class="settings-copy">
+            <h3>纸张</h3>
+            <p>换一种纸的质感，墨线和粉色强调保持不变。</p>
+          </div>
+          <div class="segmented cols-3" role="radiogroup" aria-label="纸张主题">
+            <label><input type="radio" name="paper" value="cream"><span>奶油纸</span></label>
+            <label><input type="radio" name="paper" value="kraft"><span>牛皮纸</span></label>
+            <label><input type="radio" name="paper" value="grid"><span>方格本</span></label>
+          </div>
+        </section>
+
+        <section class="settings-row">
+          <div class="settings-copy">
+            <h3>卡片密度</h3>
+            <p>紧凑模式一屏能看到更多作品。</p>
+          </div>
+          <div class="segmented cols-2" role="radiogroup" aria-label="卡片密度">
+            <label><input type="radio" name="density" value="comfortable"><span>舒适</span></label>
+            <label><input type="radio" name="density" value="compact"><span>紧凑</span></label>
+          </div>
+        </section>
+
+        <section class="settings-row">
+          <div class="settings-copy">
+            <h3>卡片短评</h3>
+            <p>在卡片下方显示短评摘录。</p>
+          </div>
+          <div class="segmented cols-2" role="radiogroup" aria-label="卡片短评">
+            <label><input type="radio" name="notes" value="show"><span>显示</span></label>
+            <label><input type="radio" name="notes" value="hide"><span>隐藏</span></label>
+          </div>
+        </section>
+
+        <section class="settings-row">
+          <div class="settings-copy">
+            <h3>动效</h3>
+            <p>需要更安静的浏览时，可以关掉大部分动画。</p>
+          </div>
+          <div class="segmented cols-2" role="radiogroup" aria-label="动效">
+            <label><input type="radio" name="motion" value="full"><span>完整</span></label>
+            <label><input type="radio" name="motion" value="reduced"><span>精简</span></label>
+          </div>
+        </section>
+
+        <section class="settings-row">
+          <div class="settings-copy">
+            <h3>默认排序</h3>
+            <p>每次打开手帐时，收藏区默认的排列方式。</p>
+          </div>
+          <label class="settings-select-wrap" for="settingsSortSelect">
+            <select id="settingsSortSelect">
+              <option value="recent">最近添加</option>
+              <option value="rating">评分最高</option>
+              <option value="title">名称排序</option>
+              <option value="finishedYear">看完年份从新到旧</option>
+              <option value="episodes">观看集数最多</option>
+            </select>
+          </label>
+        </section>
+      </div>
+
+      <div class="modal-foot">
+        <button class="text-btn" id="settingsResetBtn" type="button">恢复默认</button>
+        <div class="modal-foot-actions">
+          <button class="btn btn-ghost" type="button" data-close>完成</button>
         </div>
       </div>
     </div>

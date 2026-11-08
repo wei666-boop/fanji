@@ -17,6 +17,22 @@
   const MAX_FILE_BYTES = 10 * 1024 * 1024;
   const MAX_GIF_BYTES = 6 * 1024 * 1024;
 
+  const SETTINGS_KEY = "fanji.settings.v1";
+  const SETTINGS_SCHEMA = {
+    paper: ["cream", "kraft", "grid"],
+    density: ["comfortable", "compact"],
+    notes: ["show", "hide"],
+    motion: ["full", "reduced"],
+    defaultSort: ["recent", "rating", "title", "finishedYear", "episodes"],
+  };
+  const DEFAULT_SETTINGS = {
+    paper: "cream",
+    density: "comfortable",
+    notes: "show",
+    motion: "full",
+    defaultSort: "recent",
+  };
+
   const state = {
     items: [],
     filter: "all",
@@ -42,6 +58,7 @@
     confirmBusy: false,
     lastFocus: null,
     emptyMode: "empty",
+    settings: { ...DEFAULT_SETTINGS },
     cinema: {
       playlist: [],
       index: 0,
@@ -173,6 +190,12 @@
     shareExpiryText: $("#shareExpiryText"),
     shareCopyBtn: $("#shareCopyBtn"),
     shareStopBtn: $("#shareStopBtn"),
+    settingsBtn: $("#settingsBtn"),
+    settingsBtnTop: $("#settingsBtnTop"),
+    settingsModal: $("#settingsModal"),
+    settingsBody: $("#settingsBody"),
+    settingsSortSelect: $("#settingsSortSelect"),
+    settingsResetBtn: $("#settingsResetBtn"),
   };
 
   // ------------------------------------------------------------------
@@ -551,7 +574,8 @@
       ? `<img src="${escapeHtml(item.coverUrl)}" alt="${escapeHtml(item.title)} 封面" loading="lazy" data-cover>`
       : "";
     const tags = (Array.isArray(item.tags) ? item.tags : []).slice(0, 4)
-      .map((tag) => `<span class="tag">${highlightHtml(tag, "tag")}</span>`).join("");
+      .map((tag) => `<button class="tag tag-btn" type="button" data-tag-search="${escapeHtml(tag)}"
+        aria-label="按标签「${escapeHtml(tag)}」搜索" title="按这个标签搜索">${highlightHtml(tag, "tag")}</button>`).join("");
     const watched = Number(item.episodesWatched) || 0;
     const total = Number(item.episodesTotal) || 0;
     const progress = total > 0 ? Math.min(100, Math.round((watched / total) * 100)) : (watched > 0 ? 100 : 0);
@@ -1217,6 +1241,101 @@
   // ------------------------------------------------------------------
   // 事件绑定
   // ------------------------------------------------------------------
+
+  // ------------------------------------------------------------------
+  // 设置
+  // ------------------------------------------------------------------
+
+  function loadSettings() {
+    let saved = {};
+    try {
+      saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") || {};
+    } catch {
+      saved = {};
+    }
+    const next = { ...DEFAULT_SETTINGS };
+    for (const [key, allowed] of Object.entries(SETTINGS_SCHEMA)) {
+      if (allowed.includes(saved[key])) next[key] = saved[key];
+    }
+    state.settings = next;
+  }
+
+  function saveSettings() {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+    } catch {
+      /* 隐私模式下忽略，设置只在本次会话生效 */
+    }
+  }
+
+  function applySettings() {
+    const { paper, density, notes, motion } = state.settings;
+    const body = document.body;
+    body.dataset.paper = paper;
+    body.dataset.density = density;
+    body.dataset.notes = notes;
+    body.dataset.motion = motion;
+  }
+
+  function applyDefaultSort() {
+    state.sort = state.settings.defaultSort;
+    if (els.sortSelect) els.sortSelect.value = state.sort;
+  }
+
+  function syncSettingsUI() {
+    if (els.settingsBody) {
+      $$('input[type="radio"]', els.settingsBody).forEach((input) => {
+        input.checked = state.settings[input.name] === input.value;
+      });
+    }
+    if (els.settingsSortSelect) els.settingsSortSelect.value = state.settings.defaultSort;
+  }
+
+  function setSetting(key, value) {
+    const allowed = SETTINGS_SCHEMA[key];
+    if (!allowed || !allowed.includes(value) || state.settings[key] === value) return;
+    state.settings[key] = value;
+    saveSettings();
+    applySettings();
+    if (key === "defaultSort") {
+      applyDefaultSort();
+      renderCollection();
+    }
+  }
+
+  function openSettings() {
+    if (!els.settingsModal) return;
+    syncSettingsUI();
+    openModal(els.settingsModal);
+  }
+
+  function resetSettings() {
+    state.settings = { ...DEFAULT_SETTINGS };
+    saveSettings();
+    applySettings();
+    applyDefaultSort();
+    syncSettingsUI();
+    renderCollection();
+    toast("设置已经恢复默认");
+  }
+
+  function bindSettingsEvents() {
+    [els.settingsBtn, els.settingsBtnTop].forEach((button) => {
+      if (button) button.addEventListener("click", openSettings);
+    });
+    if (els.settingsBody) {
+      els.settingsBody.addEventListener("change", (event) => {
+        const input = event.target.closest('input[type="radio"]');
+        if (input && SETTINGS_SCHEMA[input.name]) setSetting(input.name, input.value);
+      });
+    }
+    if (els.settingsSortSelect) {
+      els.settingsSortSelect.addEventListener("change", () => {
+        setSetting("defaultSort", els.settingsSortSelect.value);
+      });
+    }
+    if (els.settingsResetBtn) els.settingsResetBtn.addEventListener("click", resetSettings);
+  }
 
   // ------------------------------------------------------------------
   // 回忆放映
@@ -2300,6 +2419,7 @@
     bindShareEvents();
     bindBackupEvents();
     bindYearReviewEvents();
+    bindSettingsEvents();
     els.addBtn.addEventListener("click", () => openForm());
     els.heroAddBtn.addEventListener("click", () => openForm());
     els.demoBtn.addEventListener("click", loadDemo);
@@ -2318,6 +2438,12 @@
     });
 
     els.grid.addEventListener("click", (event) => {
+      const tagButton = event.target.closest("[data-tag-search]");
+      if (tagButton) {
+        const tag = String(tagButton.dataset.tagSearch || "").trim();
+        if (tag) setSearchQuery(`tag:"${tag.replace(/"/g, "")}"`);
+        return;
+      }
       const actionEl = event.target.closest("[data-action]");
       if (!actionEl) return;
       const card = event.target.closest(".anime-card");
@@ -2519,6 +2645,9 @@
   // ------------------------------------------------------------------
 
   function init() {
+    loadSettings();
+    applySettings();
+    applyDefaultSort();
     bindEvents();
     loadCinemaPrefs();
     if (location.protocol === "file:") {

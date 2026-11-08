@@ -3826,6 +3826,151 @@ body.cinema-open { overflow: hidden; }
   .cover-score { padding: 1px 4px; font-size: 8px; }
 }
 
+/* ---------- 设置 / 外观偏好 ---------- */
+
+.settings-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: calc(100vh - 48px);
+}
+
+.settings-body {
+  min-height: 0;
+  padding: 4px 26px 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 292px);
+  align-items: center;
+  gap: 18px;
+  padding: 16px 0;
+  border-bottom: 2px dashed rgba(36, 29, 47, 0.14);
+}
+
+.settings-row:last-child { border-bottom: 0; }
+.settings-copy h3 { margin: 0; font-size: 13.5px; font-weight: 900; }
+.settings-copy p { margin: 4px 0 0; color: var(--muted); font-size: 10px; line-height: 1.7; }
+
+.segmented.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.segmented.cols-3 { grid-template-columns: repeat(3, 1fr); }
+
+.settings-select-wrap { display: block; }
+
+.settings-select-wrap select {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 2px solid var(--ink);
+  border-radius: 9px;
+  background: #fff5e8;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* 纸张主题 */
+
+body[data-paper="kraft"] {
+  --bg: #ecd9b8;
+  --paper: #fbf1dd;
+  --paper-warm: #f6e7ce;
+  --pink-soft: #f6d6c6;
+  --yellow-soft: #f3e2b6;
+  --blue-soft: #dbe7e0;
+  --mint-soft: #e4ebd7;
+  --lav-soft: #e8dfdc;
+}
+
+body[data-paper="kraft"] .backdrop {
+  background:
+    radial-gradient(70% 55% at 50% 0%, rgba(255, 246, 228, 0.8), transparent 70%),
+    var(--bg);
+}
+
+body[data-paper="kraft"] .modal-head,
+body[data-paper="kraft"] .modal-foot,
+body[data-paper="kraft"] .segmented,
+body[data-paper="kraft"] .settings-select-wrap select {
+  background-color: var(--paper-warm);
+}
+
+body[data-paper="grid"] {
+  --bg: #f7f6ef;
+  --paper: #fffdf8;
+  --paper-warm: #f7f4e9;
+  --pink-soft: #ffe4ec;
+}
+
+body[data-paper="grid"] .backdrop {
+  background:
+    repeating-linear-gradient(0deg, rgba(36, 29, 47, 0.055) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(90deg, rgba(36, 29, 47, 0.055) 0 1px, transparent 1px 26px),
+    var(--bg);
+}
+
+body[data-paper="grid"] .collection {
+  background:
+    repeating-linear-gradient(0deg, rgba(36, 29, 47, 0.05) 0 1px, transparent 1px 31px),
+    repeating-linear-gradient(90deg, rgba(36, 29, 47, 0.04) 0 1px, transparent 1px 31px),
+    var(--paper);
+}
+
+/* 卡片密度 / 短评 / 动效 */
+
+body[data-density="compact"] .grid {
+  grid-template-columns: repeat(auto-fill, minmax(186px, 1fr));
+  gap: 20px 16px;
+}
+
+body[data-density="compact"] .anime-card { padding: 6px 6px 9px; border-radius: 13px; }
+body[data-density="compact"] .card-title { font-size: 13.5px; min-height: 40px; }
+
+body[data-notes="hide"] .card-notes { display: none; }
+
+body[data-motion="reduced"] *,
+body[data-motion="reduced"] *::before,
+body[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+body[data-motion="reduced"] .petals { display: none; }
+
+/* 卡片标签：点击即按标签搜索 */
+
+.tag-btn {
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+
+.tag-btn:hover { transform: translateY(-1px); box-shadow: 1.5px 1.5px 0 var(--ink); }
+.tag-btn:active { transform: none; box-shadow: none; }
+
+.settings-top-btn {
+  width: 43px;
+  height: 43px;
+  border-radius: 12px;
+}
+
+@media (max-width: 880px) {
+  .settings-top-btn { display: none; }
+}
+
+@media (max-width: 680px) {
+  .settings-row { grid-template-columns: 1fr; gap: 9px; padding: 13px 0; }
+  .settings-body { padding: 2px 16px 8px; }
+  .settings-dialog .settings-body { flex: 1; }
+  body[data-density="compact"] .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 10px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
