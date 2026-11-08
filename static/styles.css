@@ -851,6 +851,43 @@ kbd {
 .search-box input::placeholder { color: var(--muted-2); }
 .search-box kbd { flex: none; }
 
+.search-box input::-webkit-search-cancel-button,
+.search-box input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-clear {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--pink-soft);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.search-clear:hover { background: var(--pink); color: #fff; }
+
+.search-box .search-clear .icon { width: 11px; height: 11px; }
+
+.search-hit {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-weight: 900;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.tag .search-hit { background: rgba(255, 216, 77, 0.92); }
+
 .select-wrap {
   position: relative;
   display: flex;

@@ -218,11 +218,16 @@
             <p id="resultCount">共 0 部作品</p>
           </div>
           <div class="toolbar">
-            <label class="search-box" for="searchInput">
+            <div class="search-box" id="searchBox">
               <svg class="icon"><use href="#icon-search"/></svg>
-              <input id="searchInput" type="search" placeholder="搜索名字、标签或短评…" autocomplete="off" spellcheck="false">
-              <kbd>Ctrl K</kbd>
-            </label>
+              <input id="searchInput" type="search" placeholder="搜索名字、原名、标签、短评或年份…"
+                     autocomplete="off" spellcheck="false" aria-label="搜索作品"
+                     title="空格分隔多个关键词；可用 tag: / title: / note: / year: 限定范围">
+              <button class="search-clear" id="searchClear" type="button" aria-label="清空搜索" title="清空搜索" hidden>
+                <svg class="icon"><use href="#icon-close"/></svg>
+              </button>
+              <kbd id="searchKbd">Ctrl K</kbd>
+            </div>
             <label class="select-wrap" for="sortSelect">
               <svg class="icon"><use href="#icon-chevron"/></svg>
               <select id="sortSelect">

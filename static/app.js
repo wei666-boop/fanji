@@ -21,6 +21,8 @@
     items: [],
     filter: "all",
     query: "",
+    searchTerms: [],
+    searchTimer: 0,
     sort: "recent",
     editingId: null,
     editingAccent: null,
@@ -69,7 +71,10 @@
     emptyAddBtn: $("#emptyAddBtn"),
     emptyDemoBtn: $("#emptyDemoBtn"),
     resultCount: $("#resultCount"),
+    searchBox: $("#searchBox"),
     searchInput: $("#searchInput"),
+    searchClear: $("#searchClear"),
+    searchKbd: $("#searchKbd"),
     sortSelect: $("#sortSelect"),
     filterBar: $("#filterBar"),
     demoChip: $("#demoChip"),
@@ -322,52 +327,167 @@
     });
   }
 
+  // 搜索语法：空格分隔多个关键词（全部命中），支持 "引号短语"
+  // 与字段限定 title: / tag: / note: / year:（也接受中文冒号）。
+  function parseSearchQuery(raw) {
+    const text = String(raw || "")
+      .replace(/[\u3000\s]+/g, " ")
+      .replace(/：/g, ":")
+      .trim();
+    if (!text) return [];
+    const terms = [];
+    const pattern = /(title|tag|note|year):("([^"]*)"|(\S+))|"([^"]*)"|(\S+)/gi;
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const field = match[1] ? match[1].toLowerCase() : "";
+      const value = (field ? (match[3] ?? match[4] ?? "") : (match[5] ?? match[6] ?? "")).trim();
+      if (!value) continue;
+      // 只输入了 "tag:" 这类未完成的前缀时不当作关键词。
+      if (!field && /^(title|tag|note|year):$/i.test(value)) continue;
+      terms.push({ field, value: value.toLowerCase(), raw: value });
+    }
+    return terms;
+  }
+
+  function searchFieldsOf(item) {
+    const title = [item.title, item.altTitle].filter(Boolean).join(" ").toLowerCase();
+    return {
+      title,
+      tag: (Array.isArray(item.tags) ? item.tags : []).join(" ").toLowerCase(),
+      note: String(item.notes || "").toLowerCase(),
+      year: item.finishedYear ? String(item.finishedYear) : "",
+    };
+  }
+
+  // 每个关键词都要命中；返回得分（越大越相关），-1 表示不匹配。
+  function searchScoreOf(item, terms) {
+    const fields = searchFieldsOf(item);
+    let score = 0;
+    for (const term of terms) {
+      if (term.field === "year") {
+        if (fields.year !== term.value) return -1;
+        score += 3;
+        continue;
+      }
+      if (term.field) {
+        const pool = fields[term.field] || "";
+        if (!pool.includes(term.value)) return -1;
+        score += term.field === "title" ? 5 : term.field === "tag" ? 3 : 2;
+        continue;
+      }
+      if (fields.title.includes(term.value)) score += fields.title.startsWith(term.value) ? 6 : 4;
+      else if (fields.tag.includes(term.value)) score += 3;
+      else if (fields.note.includes(term.value)) score += 2;
+      else if (fields.year.includes(term.value)) score += 1;
+      else return -1;
+    }
+    return score;
+  }
+
+  // 在文字里高亮命中的关键词（先转义再包 mark，避免注入）。
+  function highlightHtml(value, field) {
+    const text = String(value ?? "");
+    const terms = state.searchTerms.filter((term) => !term.field || term.field === field);
+    if (!text || !terms.length) return escapeHtml(text);
+    const lower = text.toLowerCase();
+    if (lower.length !== text.length) return escapeHtml(text);
+    const needles = Array.from(new Set(terms.map((term) => term.value))).filter(Boolean);
+    const ranges = [];
+    for (const needle of needles) {
+      let from = 0;
+      while (from <= lower.length - needle.length) {
+        const at = lower.indexOf(needle, from);
+        if (at < 0) break;
+        ranges.push([at, at + needle.length]);
+        from = at + needle.length;
+      }
+    }
+    if (!ranges.length) return escapeHtml(text);
+    ranges.sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const [start, end] of ranges) {
+      const last = merged[merged.length - 1];
+      if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+      else merged.push([start, end]);
+    }
+    let html = "";
+    let cursor = 0;
+    for (const [start, end] of merged) {
+      html += escapeHtml(text.slice(cursor, start));
+      html += `<mark class="search-hit">${escapeHtml(text.slice(start, end))}</mark>`;
+      cursor = end;
+    }
+    return html + escapeHtml(text.slice(cursor));
+  }
+
+  function syncSearchChrome() {
+    const active = Boolean(state.query.trim());
+    if (els.searchClear) els.searchClear.hidden = !active;
+    if (els.searchKbd) els.searchKbd.hidden = active;
+    els.searchInput.setAttribute("aria-label", active ? `搜索：${state.query.trim()}` : "搜索作品");
+  }
+
+  function scheduleSearchRender() {
+    window.clearTimeout(state.searchTimer);
+    state.searchTimer = window.setTimeout(() => {
+      state.searchTimer = 0;
+      renderCollection();
+    }, 140);
+  }
+
+  function setSearchQuery(value, options = {}) {
+    state.query = String(value ?? "");
+    if (els.searchInput.value !== state.query) els.searchInput.value = state.query;
+    window.clearTimeout(state.searchTimer);
+    state.searchTimer = 0;
+    syncSearchChrome();
+    if (options.render !== false) renderCollection();
+  }
+
   function filteredSorted() {
-    const query = state.query.trim().toLowerCase();
+    const terms = parseSearchQuery(state.query);
+    state.searchTerms = terms;
     let items = state.items.slice();
     if (state.filter !== "all") {
       items = items.filter((item) => item.status === state.filter);
     }
-    if (query) {
-      items = items.filter((item) => {
-        const haystack = [
-          item.title,
-          item.altTitle,
-          item.notes,
-          item.finishedYear ? String(item.finishedYear) : "",
-          ...(Array.isArray(item.tags) ? item.tags : []),
-        ].join(" ").toLowerCase();
-        return haystack.includes(query);
-      });
-    }
+    let entries = items.map((item) => ({
+      item,
+      score: terms.length ? searchScoreOf(item, terms) : 0,
+    }));
+    if (terms.length) entries = entries.filter((entry) => entry.score >= 0);
     switch (state.sort) {
       case "rating":
-        items.sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || byRecent(a, b));
+        entries.sort((a, b) => (Number(b.item.rating) || 0) - (Number(a.item.rating) || 0) || byRecent(a.item, b.item));
         break;
       case "title":
-        items.sort((a, b) => String(a.title).localeCompare(String(b.title), "zh-Hans-CN", { sensitivity: "base" }));
+        entries.sort((a, b) => String(a.item.title).localeCompare(String(b.item.title), "zh-Hans-CN", { sensitivity: "base" }));
         break;
       case "finishedYear":
-        items.sort((a, b) => (Number(b.finishedYear) || 0) - (Number(a.finishedYear) || 0) || byRecent(a, b));
+        entries.sort((a, b) => (Number(b.item.finishedYear) || 0) - (Number(a.item.finishedYear) || 0) || byRecent(a.item, b.item));
         break;
       case "episodes":
-        items.sort((a, b) => (Number(b.episodesWatched) || 0) - (Number(a.episodesWatched) || 0) || byRecent(a, b));
+        entries.sort((a, b) => (Number(b.item.episodesWatched) || 0) - (Number(a.item.episodesWatched) || 0) || byRecent(a.item, b.item));
         break;
       default:
-        items.sort(byRecent);
+        // 搜索时默认按相关度排序，其余排序方式尊重用户选择。
+        entries.sort((a, b) => terms.length
+          ? (b.score - a.score || byRecent(a.item, b.item))
+          : byRecent(a.item, b.item));
     }
-    return items;
+    return entries.map((entry) => entry.item);
   }
 
   function renderCollection() {
     const items = filteredSorted();
-    const filtering = Boolean(state.query.trim()) || state.filter !== "all";
-    const countText = items.length === 0 && !state.items.length
-      ? "等待第一部作品"
-      : filtering
-        ? `找到 ${items.length} 部作品`
-        : `共 ${items.length} 部作品`;
+    const terms = state.searchTerms;
+    let countText;
+    if (!state.items.length) countText = "等待第一部作品";
+    else if (terms.length) countText = items.length ? `找到 ${items.length} 部作品` : "没有找到匹配的作品";
+    else if (state.filter !== "all") countText = `筛选出 ${items.length} 部作品`;
+    else countText = `共 ${items.length} 部作品`;
     els.resultCount.textContent = countText;
+    syncSearchChrome();
 
     els.grid.innerHTML = items.map((item, index) => cardHtml(item, index)).join("");
     els.grid.hidden = items.length === 0;
@@ -415,13 +535,13 @@
 
     state.emptyMode = "filter";
     els.emptyBubble.innerHTML = "まだまだ！<b>再翻翻看</b>";
-    els.emptyTitle.textContent = "没有翻到这一页";
-    els.emptyText.innerHTML = state.query.trim()
-      ? "换个关键词试试，或者切回「全部」。"
+    els.emptyTitle.textContent = state.searchTerms.length ? "没有找到这一页" : "没有翻到这一页";
+    els.emptyText.innerHTML = state.searchTerms.length
+      ? `没有找到和「${escapeHtml(state.query.trim())}」匹配的作品。<br>换个词，或用空格分隔多个关键词；tag: / year: 可精确查找。`
       : "这个分类下还没有作品，<br>去看看其他收藏吧。";
     els.emptyAddBtn.hidden = false;
     els.emptyDemoBtn.hidden = true;
-    setButton(els.emptyAddBtn, "清除筛选条件", "icon-search");
+    setButton(els.emptyAddBtn, state.searchTerms.length ? "清除搜索" : "清除筛选条件", "icon-search");
   }
 
   function cardHtml(item, index) {
@@ -431,7 +551,7 @@
       ? `<img src="${escapeHtml(item.coverUrl)}" alt="${escapeHtml(item.title)} 封面" loading="lazy" data-cover>`
       : "";
     const tags = (Array.isArray(item.tags) ? item.tags : []).slice(0, 4)
-      .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
+      .map((tag) => `<span class="tag">${highlightHtml(tag, "tag")}</span>`).join("");
     const watched = Number(item.episodesWatched) || 0;
     const total = Number(item.episodesTotal) || 0;
     const progress = total > 0 ? Math.min(100, Math.round((watched / total) * 100)) : (watched > 0 ? 100 : 0);
@@ -441,7 +561,7 @@
         ? `已看 ${watched} 集`
         : "集数未记录";
     const meta = [
-      item.finishedYear ? `${item.finishedYear} 年` : "",
+      item.finishedYear ? `${highlightHtml(String(item.finishedYear), "year")} 年` : "",
       total > 0 ? `全 ${total} 集` : "",
     ].filter(Boolean).join(`<span class="sep">·</span>`) || "信息待补充";
     const score = Number(item.rating) > 0
@@ -449,8 +569,8 @@
       : "";
     const demo = item.demo ? `<span class="demo-flag">SAMPLE</span>` : "";
     const done = item.status === "completed" ? `<span class="done-stamp" aria-hidden="true">済</span>` : "";
-    const notes = item.notes ? `<p class="card-notes">${escapeHtml(item.notes)}</p>` : "";
-    const fallbackLabel = item.altTitle ? item.altTitle : "ANIME ARCHIVE";
+    const notes = item.notes ? `<p class="card-notes">${highlightHtml(item.notes, "note")}</p>` : "";
+    const fallbackLabel = item.altTitle ? highlightHtml(item.altTitle, "title") : "ANIME ARCHIVE";
     const cardNo = String(index + 1).padStart(2, "0");
 
     return `
@@ -460,7 +580,7 @@
           ${cover}
           <div class="cover-fallback" aria-hidden="true">
             <span class="fallback-initial">${escapeHtml(initialOf(item.title))}</span>
-            <span class="fallback-small">${escapeHtml(fallbackLabel)}</span>
+            <span class="fallback-small">${fallbackLabel}</span>
           </div>
           <span class="status-badge status-${escapeHtml(item.status)}"><i></i>${escapeHtml(status.label)}</span>
           ${score}
@@ -470,7 +590,7 @@
         </button>
         <div class="card-body">
           <div class="card-title-row">
-            <h3 class="card-title">${escapeHtml(item.title)}</h3>
+            <h3 class="card-title">${highlightHtml(item.title, "title")}</h3>
             <button class="icon-btn card-edit" type="button" data-action="edit"
                     aria-label="编辑《${escapeHtml(item.title)}》">${icon("icon-edit")}</button>
           </div>
@@ -822,8 +942,7 @@
       } else {
         state.items.unshift(data.item);
         state.filter = "all";
-        state.query = "";
-        els.searchInput.value = "";
+        setSearchQuery("", { render: false });
       }
       state.submitting = false;
       setSaveLabel(false, editing);
@@ -2222,15 +2341,33 @@
       }
     });
 
-    els.searchInput.addEventListener("input", () => {
+    els.searchInput.addEventListener("input", (event) => {
+      if (event.isComposing) return;
       state.query = els.searchInput.value;
-      renderCollection();
+      syncSearchChrome();
+      scheduleSearchRender();
     });
+    els.searchInput.addEventListener("compositionend", () => {
+      state.query = els.searchInput.value;
+      syncSearchChrome();
+      scheduleSearchRender();
+    });
+    if (els.searchBox) {
+      els.searchBox.addEventListener("click", (event) => {
+        if (event.target.closest(".search-clear")) return;
+        els.searchInput.focus();
+      });
+    }
+    if (els.searchClear) {
+      els.searchClear.addEventListener("click", (event) => {
+        event.preventDefault();
+        setSearchQuery("");
+        els.searchInput.focus();
+      });
+    }
     els.searchInput.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
-        els.searchInput.value = "";
-        state.query = "";
-        renderCollection();
+        setSearchQuery("");
         els.searchInput.blur();
       }
     });
@@ -2346,9 +2483,7 @@
           return;
         }
         if (document.activeElement === els.searchInput && els.searchInput.value) {
-          els.searchInput.value = "";
-          state.query = "";
-          renderCollection();
+          setSearchQuery("");
         }
         return;
       }
@@ -2374,8 +2509,7 @@
 
   function resetFilters() {
     state.filter = "all";
-    state.query = "";
-    els.searchInput.value = "";
+    setSearchQuery("", { render: false });
     renderFilters();
     renderCollection();
   }
