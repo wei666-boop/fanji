@@ -81,6 +81,7 @@
 
   const els = {
     grid: $("#grid"),
+    gridSkeleton: $("#gridSkeleton"),
     emptyState: $("#emptyState"),
     emptyTitle: $("#emptyTitle"),
     emptyText: $("#emptyText"),
@@ -501,6 +502,37 @@
     return entries.map((entry) => entry.item);
   }
 
+  const cardCache = new Map();
+
+  function cardNodeFromHtml(html) {
+    const template = document.createElement("template");
+    template.innerHTML = html.trim();
+    return template.content.firstElementChild;
+  }
+
+  // 按 id 复用卡片节点：只替换内容变化的那几张，避免整表重建和图片重载。
+  function renderCards(items) {
+    const nextIds = new Set(items.map((item) => item.id));
+    for (const [id, entry] of cardCache) {
+      if (nextIds.has(id)) continue;
+      entry.node.remove();
+      cardCache.delete(id);
+    }
+    const fragment = document.createDocumentFragment();
+    items.forEach((item, index) => {
+      const html = cardHtml(item, index);
+      let entry = cardCache.get(item.id);
+      if (!entry || entry.html !== html) {
+        const node = cardNodeFromHtml(html);
+        if (entry) entry.node.replaceWith(node);
+        entry = { html, node };
+        cardCache.set(item.id, entry);
+      }
+      fragment.appendChild(entry.node);
+    });
+    els.grid.appendChild(fragment);
+  }
+
   function renderCollection() {
     const items = filteredSorted();
     const terms = state.searchTerms;
@@ -511,8 +543,9 @@
     else countText = `共 ${items.length} 部作品`;
     els.resultCount.textContent = countText;
     syncSearchChrome();
+    hideSkeleton();
 
-    els.grid.innerHTML = items.map((item, index) => cardHtml(item, index)).join("");
+    renderCards(items);
     els.grid.hidden = items.length === 0;
     renderEmpty(items);
 
@@ -520,6 +553,25 @@
     window.requestAnimationFrame(() => {
       $$(".anime-card", els.grid).forEach((card) => card.classList.add("is-ready"));
     });
+  }
+
+  function showSkeleton() {
+    if (!els.gridSkeleton || els.gridSkeleton.dataset.built === "1") return;
+    els.gridSkeleton.innerHTML = Array.from({ length: 8 }, () => `
+      <div class="skeleton-card" aria-hidden="true">
+        <div class="skeleton-cover"></div>
+        <div class="skeleton-line skeleton-line-lg"></div>
+        <div class="skeleton-line skeleton-line-sm"></div>
+        <div class="skeleton-foot"><span></span><span></span></div>
+      </div>`).join("");
+    els.gridSkeleton.dataset.built = "1";
+    els.gridSkeleton.hidden = false;
+    els.grid.setAttribute("aria-busy", "true");
+  }
+
+  function hideSkeleton() {
+    if (els.gridSkeleton) els.gridSkeleton.hidden = true;
+    els.grid.removeAttribute("aria-busy");
   }
 
   function renderEmpty(items) {
@@ -571,7 +623,7 @@
     const status = STATUS[item.status] || STATUS.completed;
     const accent = safeAccent(item.accent);
     const cover = item.coverUrl
-      ? `<img src="${escapeHtml(item.coverUrl)}" alt="${escapeHtml(item.title)} 封面" loading="lazy" data-cover>`
+      ? `<img src="${escapeHtml(item.coverUrl)}" alt="${escapeHtml(item.title)} 封面" loading="lazy" decoding="async" data-cover>`
       : "";
     const tags = (Array.isArray(item.tags) ? item.tags : []).slice(0, 4)
       .map((tag) => `<button class="tag tag-btn" type="button" data-tag-search="${escapeHtml(tag)}"
@@ -641,6 +693,8 @@
 
   function bindImageFallbacks(container) {
     $$("img[data-cover]", container).forEach((img) => {
+      if (img.dataset.fallbackBound === "1") return;
+      img.dataset.fallbackBound = "1";
       img.addEventListener("error", () => {
         const cover = img.closest(".cover, .detail-cover, .year-thumb, .year-mini-cover");
         if (cover) {
@@ -688,7 +742,7 @@
       : `<p class="detail-notes is-empty">这一页还没有短评… 点「编辑这一页」写点什么吧。</p>`;
     const demo = item.demo ? `<span class="demo-tag">SAMPLE / 示例</span>` : "";
     const cover = item.coverUrl
-      ? `<img src="${escapeHtml(item.coverUrl)}" alt="${escapeHtml(item.title)} 封面" data-cover>`
+      ? `<img src="${escapeHtml(item.coverUrl)}" alt="${escapeHtml(item.title)} 封面" decoding="async" data-cover>`
       : "";
     const fallbackLabel = item.altTitle ? item.altTitle : "ANIME ARCHIVE";
     const archiveNo = String(item.id).slice(-6).toUpperCase();
@@ -861,7 +915,7 @@
     const height = source.height || source.naturalHeight;
     if (!width || !height) throw new Error("无法读取这张图片");
 
-    const maxEdge = 1500;
+    const maxEdge = 1200;
     const scale = Math.min(1, maxEdge / Math.max(width, height));
     const targetWidth = Math.max(1, Math.round(width * scale));
     const targetHeight = Math.max(1, Math.round(height * scale));
@@ -876,7 +930,7 @@
     ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
     if (typeof source.close === "function") source.close();
 
-    let quality = 0.87;
+    let quality = 0.82;
     let dataUrl = canvas.toDataURL("image/webp", quality);
     const webp = dataUrl.startsWith("data:image/webp");
     while (dataUrl.length * 0.75 > 7.4 * 1024 * 1024 && quality > 0.45) {
@@ -1501,7 +1555,7 @@
       .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
     const finished = Number(item.finishedYear) || 0;
     const cover = item.coverUrl
-      ? `<img src="${escapeHtml(item.coverUrl)}" alt="${escapeHtml(item.title)} 封面" data-cover>`
+      ? `<img src="${escapeHtml(item.coverUrl)}" alt="${escapeHtml(item.title)} 封面" decoding="async" data-cover>`
       : "";
     const fallbackLabel = item.altTitle ? item.altTitle : "ANIME ARCHIVE";
     const note = item.notes
@@ -2086,7 +2140,7 @@
 
   function yearCover(item, className = "year-thumb") {
     const cover = item.coverUrl
-      ? `<img src="${escapeHtml(item.coverUrl)}" alt="" loading="lazy" data-cover>`
+      ? `<img src="${escapeHtml(item.coverUrl)}" alt="" loading="lazy" decoding="async" data-cover>`
       : "";
     const label = item.altTitle || "ANIME ARCHIVE";
     return `<span class="${className} ${item.coverUrl ? "has-image" : "no-cover"}">
@@ -2499,8 +2553,12 @@
     });
 
     els.sortSelect.addEventListener("change", () => {
-      state.sort = els.sortSelect.value;
-      renderCollection();
+      const next = els.sortSelect.value;
+      const unchanged = state.settings.defaultSort === next;
+      state.sort = next;
+      setSetting("defaultSort", next);
+      // setSetting 只在值变化时才渲染；这里兜底，避免排序没生效。
+      if (unchanged) renderCollection();
     });
 
     els.filterBar.addEventListener("click", (event) => {
@@ -2656,6 +2714,9 @@
       renderAll();
       return;
     }
+    window.setTimeout(() => {
+      if (state.loading) showSkeleton();
+    }, 160);
     loadItems();
     loadMusic();
   }
